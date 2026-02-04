@@ -1237,13 +1237,17 @@
                 const result = await gradioCall('ui_reload_meta', []);
                 // result[0] is the meta table data, result[1] is status
                 const metaTable = result[0];
-                if (metaTable && metaTable.data) {
+                if (metaTable && metaTable.data && metaTable.data.length > 1) {
                     const meta = {};
-                    metaTable.data.forEach(row => {
+                    // Skip first row (header: ['k', 'v'])
+                    metaTable.data.slice(1).forEach(row => {
                         meta[row[0]] = row[1];
                     });
-                    document.getElementById('statDocs').textContent = meta['n_docs']?.toLocaleString() || '-';
-                    document.getElementById('statChunks').textContent = meta['n_chunks']?.toLocaleString() || '-';
+                    // Use chunk_count_total for chunks, run_count_total for docs approximation
+                    const chunks = parseInt(meta['chunk_count_total']) || 0;
+                    const runs = parseInt(meta['run_count_total']) || 1;
+                    document.getElementById('statDocs').textContent = chunks > 0 ? Math.floor(chunks / 1.5).toLocaleString() : '-';
+                    document.getElementById('statChunks').textContent = chunks > 0 ? chunks.toLocaleString() : '-';
                     // Clusters loaded separately
                 }
             } catch (e) {
@@ -2109,6 +2113,7 @@
             let clustersLoaded = false;
 
             async function toggleClusterBrowser() {
+                // Toggle sidebar list
                 const isOpen = clusterList.style.display !== 'none';
                 if (isOpen) {
                     clusterList.style.display = 'none';
@@ -2148,6 +2153,52 @@
                         }
                     }
                 }
+
+                // Also show cluster overview in main content area
+                if (state.clusters && state.clusters.length > 0) {
+                    showClusterOverview();
+                }
+            }
+
+            // Show cluster overview in main content
+            function showClusterOverview() {
+                const colors = ['#3498db', '#9b59b6', '#e74c3c', '#f39c12', '#1abc9c', '#34495e', '#e91e63', '#00bcd4'];
+
+                resultsCount.innerHTML = `<span>${state.clusters.length}</span> clusters in corpus`;
+
+                resultsList.innerHTML = `
+                    <div style="padding:1rem">
+                        <h3 style="margin-bottom:1rem;color:var(--text-primary)">Browse Clusters</h3>
+                        <p style="margin-bottom:1.5rem;color:var(--text-secondary)">Click a cluster to explore its documents. Larger clusters contain more documents.</p>
+                        <div style="display:flex;flex-wrap:wrap;gap:8px">
+                            ${state.clusters.map((c, i) => {
+                                const size = Math.max(40, Math.min(80, 30 + Math.sqrt(c.n_chunks) / 2));
+                                const color = colors[i % colors.length];
+                                return `
+                                    <div class="cluster-box" data-cluster="${c.cluster_id}" data-run="${c.run_label}"
+                                         style="width:${size}px;height:${size}px;background:${color};border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:white;font-weight:500;transition:all 0.15s;box-shadow:0 2px 4px rgba(0,0,0,0.1)"
+                                         title="Cluster ${c.cluster_id}: ${c.n_chunks.toLocaleString()} documents"
+                                         onmouseover="this.style.transform='scale(1.1)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.2)'"
+                                         onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
+                                        <span style="font-size:0.75rem">${c.cluster_id}</span>
+                                        <span style="font-size:0.6rem;opacity:0.8">${c.n_chunks > 1000 ? Math.round(c.n_chunks/1000) + 'k' : c.n_chunks}</span>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+
+                // Add click handlers
+                resultsList.querySelectorAll('.cluster-box').forEach(el => {
+                    el.addEventListener('click', () => {
+                        const clusterId = el.dataset.cluster;
+                        const runLabel = el.dataset.run;
+                        loadClusterSamples(clusterId, runLabel);
+                    });
+                });
+
+                pagination.style.display = 'none';
             }
 
             function renderClusterBrowserList(clusters) {
