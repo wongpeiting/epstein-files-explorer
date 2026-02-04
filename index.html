@@ -1096,7 +1096,7 @@
                 <div class="stat-item">Docs: <span id="statDocs">-</span></div>
                 <div class="stat-item">Chunks: <span id="statChunks">-</span></div>
                 <div class="stat-item stat-clickable" id="clusterStat" title="Click to browse clusters">Clusters: <span id="statClusters">-</span></div>
-                <div class="stat-item" style="color:var(--text-muted);font-size:0.75rem" title="House Oversight Committee Nov 2025 release. Does not include DOJ Jan 2026 release.">Data: Nov 2025 release</div>
+                <div class="stat-item" style="color:var(--text-muted);font-size:0.75rem" title="House Oversight Nov 2025 + DOJ Jan 2026">Jan 2026: <span id="statJan2026">1,076</span> files</div>
                 <a href="https://github.com/wongpeiting/epstein-files-explorer" target="_blank" rel="noopener noreferrer" class="about-link" title="About this project">?</a>
             </div>
         </div>
@@ -1400,6 +1400,49 @@
             hasMore: true
         };
 
+        // Jan 2026 DOJ files index (loaded from external JSON)
+        let jan2026Index = [];
+        let jan2026IndexLoaded = false;
+
+        // Load Jan 2026 index
+        async function loadJan2026Index() {
+            if (jan2026IndexLoaded) return;
+            try {
+                const res = await fetch('jan2026-index.json');
+                jan2026Index = await res.json();
+                jan2026IndexLoaded = true;
+                document.getElementById('statJan2026').textContent = jan2026Index.length.toLocaleString();
+                console.log('Jan 2026 index loaded:', jan2026Index.length, 'files');
+            } catch (e) {
+                console.error('Failed to load Jan 2026 index:', e);
+            }
+        }
+
+        // Search Jan 2026 files by filename
+        function searchJan2026(query) {
+            if (!jan2026IndexLoaded || !query) return [];
+            const terms = query.toLowerCase().split(/\s+/);
+            return jan2026Index.filter(file => {
+                const name = file.name.toLowerCase();
+                return terms.every(term => name.includes(term));
+            }).slice(0, 50); // Limit results
+        }
+
+        // Open Jan 2026 document
+        async function openJan2026Doc(url, filename) {
+            modalOverlay.classList.add('active');
+            document.getElementById('modalTitle').textContent = filename;
+            document.getElementById('modalBody').innerHTML = '<div class="loading"><div class="spinner"></div><div style="margin-top:1rem">Loading document...</div></div>';
+
+            try {
+                const res = await fetch(url);
+                const text = await res.text();
+                document.getElementById('modalBody').innerHTML = `<pre style="white-space:pre-wrap;font-size:0.85rem;line-height:1.6">${escapeHtml(text)}</pre>`;
+            } catch (e) {
+                document.getElementById('modalBody').innerHTML = '<div class="empty-state">Failed to load document</div>';
+            }
+        }
+
         // DOM Elements
         const searchInput = document.getElementById('searchInput');
         const fuzzyToggle = document.getElementById('fuzzyToggle');
@@ -1453,6 +1496,9 @@
 
             // Load stats in background (optional, doesn't block)
             loadStats().catch(e => console.error('Stats load error:', e));
+
+            // Load Jan 2026 index in background
+            loadJan2026Index().catch(e => console.error('Jan 2026 index load error:', e));
         }
 
         // Load clusters and show the cluster visualization (with auto-retry)
@@ -2067,7 +2113,12 @@
         function renderResults(append = false) {
             const searchNote = document.getElementById('searchNote');
 
-            if (!state.results.length) {
+            // Also search Jan 2026 files if we have a query
+            const jan2026Results = (state.query || state.selectedTags.length > 0)
+                ? searchJan2026(state.query || state.selectedTags.join(' '))
+                : [];
+
+            if (!state.results.length && !jan2026Results.length) {
                 resultsList.innerHTML = '<div class="empty-state"><h3>No results found</h3><p>Try different keywords or enable fuzzy search.</p></div>';
                 resultsCount.textContent = 'No results';
                 searchNote.style.display = 'none';
@@ -2075,7 +2126,9 @@
                 return;
             }
 
-            resultsCount.innerHTML = `Showing <span>${state.results.length}</span> of <span>${state.total.toLocaleString()}</span> results`;
+            const jan2026Count = jan2026Results.length;
+            const totalShown = state.results.length + jan2026Count;
+            resultsCount.innerHTML = `Showing <span>${totalShown}</span> results (Nov 2025: ${state.results.length}, Jan 2026: ${jan2026Count})`;
 
             // Show search note explaining what's being matched
             if (state.searchMode === 'combined' && state.selectedTags.length > 0) {
@@ -2097,17 +2150,46 @@
                 searchNote.style.display = 'none';
             }
 
-            const resultsHtml = state.results.map(r => `
+            // Render Nov 2025 results (HuggingFace API)
+            const nov2025Html = state.results.map(r => `
                 <div class="result-card" data-doc="${r.uid || r.doc_id}">
                     <div class="result-header">
                         <div class="result-source">${escapeHtml(r.source_file || 'Unknown source')}</div>
                         ${r.cluster_id !== null ? `<span class="result-cluster" style="background:${colorScale(r.cluster_id)}40">Cluster ${r.cluster_id}</span>` : ''}
+                        <span class="result-cluster" style="background:var(--bg-tertiary)">Nov 2025</span>
                     </div>
                     <div class="result-text">${r.text_highlighted || escapeHtml(r.text || '')}</div>
                 </div>
             `).join('');
 
-            resultsList.innerHTML = resultsHtml;
+            // Render Jan 2026 results (GitHub files)
+            const jan2026Html = jan2026Results.length ? `
+                <div style="margin-top:1.5rem;padding-top:1rem;border-top:2px solid var(--accent)">
+                    <div style="font-size:0.85rem;color:var(--accent);margin-bottom:1rem;font-weight:600">
+                        📁 Jan 2026 DOJ Release (${jan2026Results.length} matching files)
+                    </div>
+                    ${jan2026Results.map(f => `
+                        <div class="result-card jan2026-result" data-url="${f.url}" data-name="${escapeHtml(f.name)}" style="cursor:pointer">
+                            <div class="result-header">
+                                <div class="result-source">${escapeHtml(f.name)}</div>
+                                <span class="result-cluster" style="background:var(--accent);color:white">Jan 2026</span>
+                            </div>
+                            <div class="result-text" style="color:var(--text-muted);font-size:0.8rem">
+                                ${escapeHtml(f.folder)} · ${(f.size / 1024).toFixed(0)} KB
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : '';
+
+            resultsList.innerHTML = nov2025Html + jan2026Html;
+
+            // Add click handlers for Jan 2026 results
+            resultsList.querySelectorAll('.jan2026-result').forEach(el => {
+                el.addEventListener('click', () => {
+                    openJan2026Doc(el.dataset.url, el.dataset.name);
+                });
+            });
 
             // NOTE: Click handlers use event delegation (set up once in init())
             // Do NOT add listeners here - it causes accumulation bug
