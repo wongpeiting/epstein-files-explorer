@@ -1095,7 +1095,7 @@
             <div class="stats-bar" id="statsBar">
                 <div class="stat-item">Docs: <span id="statDocs">-</span></div>
                 <div class="stat-item">Chunks: <span id="statChunks">-</span></div>
-                <div class="stat-item stat-clickable" id="clusterStat" title="Click to browse clusters">Clusters: <span id="statClusters">-</span></div>
+                <div class="stat-item stat-clickable" id="clusterStat" title="Click to browse clusters (Nov 2025 data only)">Clusters: <span id="statClusters">-</span></div>
                 <div class="stat-item" style="color:var(--text-muted);font-size:0.75rem" title="Data: Nov 2025 House Oversight release (~330k docs) + Jan 2026 DOJ release (1,076 files)">Data: Nov 2025 + Jan 2026</div>
                 <a href="https://github.com/wongpeiting/epstein-files-explorer" target="_blank" rel="noopener noreferrer" class="about-link" title="About this project">?</a>
             </div>
@@ -2576,7 +2576,9 @@
 
                 resultsList.innerHTML = `
                     <div style="padding:0.5rem">
-                        <p style="color:var(--text-secondary);margin-bottom:0.5rem;font-size:0.8rem">Click a cluster to explore its documents. Drag to rearrange. Numbers show cluster ID and document count.</p>
+                        <p style="color:var(--text-secondary);margin-bottom:0.5rem;font-size:0.8rem">
+                            <strong>Nov 2025 Release</strong> — 256 semantic clusters. Click to explore, drag to rearrange.
+                        </p>
                         <div id="clusterForceContainer" style="width:100%"></div>
                     </div>
                 `;
