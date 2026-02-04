@@ -1923,20 +1923,26 @@
                     const previewIdx = headers.indexOf('preview') >= 0 ? headers.indexOf('preview') : 6;
                     const clusterIdx = headers.indexOf('cluster_id') >= 0 ? headers.indexOf('cluster_id') : 1;
 
-                    // Filter to only results containing ALL terms (AND logic)
-                    const allResults = dataRows.map(row => ({
+                    // Map results (API already filtered by search terms)
+                    // Note: Only apply AND filtering when multiple tags are selected
+                    const mappedResults = dataRows.map(row => ({
                         uid: row[uidIdx],
                         doc_id: row[docIdx] || row[uidIdx],
                         source_file: row[srcIdx] || 'Unknown',
                         text: row[previewIdx] || '',
                         cluster_id: row[clusterIdx] || null
-                    })).filter(r => {
-                        const textLower = r.text.toLowerCase();
-                        return state.selectedTags.every(tag => {
-                            const tagLower = tag.toLowerCase().replace(/"/g, '');
-                            return textLower.includes(tagLower);
-                        });
-                    });
+                    }));
+
+                    // Only filter for AND logic if multiple tags (single tag = trust API results)
+                    const allResults = state.selectedTags.length > 1
+                        ? mappedResults.filter(r => {
+                            const textLower = (r.text + ' ' + r.source_file).toLowerCase();
+                            return state.selectedTags.every(tag => {
+                                const tagLower = tag.toLowerCase().replace(/"/g, '');
+                                return textLower.includes(tagLower);
+                            });
+                        })
+                        : mappedResults;
 
                     // Apply highlighting and truncation
                     const processedResults = allResults.map(r => ({
