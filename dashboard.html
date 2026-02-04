@@ -1167,12 +1167,16 @@
             loadClustersAndShow();
         }
 
-        // Load clusters and show the cluster visualization
+        // Load clusters and show the cluster visualization (with auto-retry)
+        let clusterLoadAttempts = 0;
         async function loadClustersAndShow() {
+            clusterLoadAttempts++;
             resultsList.innerHTML = `
                 <div class="loading">
                     <div class="spinner"></div>
-                    <div style="margin-top:1rem;color:var(--text-secondary)">Loading clusters...</div>
+                    <div style="margin-top:1rem;color:var(--text-secondary)">
+                        Loading clusters...${clusterLoadAttempts > 1 ? ` (attempt ${clusterLoadAttempts})` : ''}
+                    </div>
                 </div>`;
 
             try {
@@ -1188,17 +1192,24 @@
 
                     state.clusters = clusters;
                     document.getElementById('statClusters').textContent = clusters.length.toLocaleString();
+                    clusterLoadAttempts = 0; // Reset on success
                     showClusterOverview();
                 } else {
                     resultsList.innerHTML = '<div class="empty-state">No clusters found</div>';
                 }
             } catch (e) {
                 console.error('Cluster load error:', e);
-                resultsList.innerHTML = `
-                    <div class="empty-state" style="text-align:center">
-                        <p>Could not load clusters.</p>
-                        <button onclick="loadClustersAndShow()" style="margin-top:1rem;padding:8px 16px;background:var(--accent);color:white;border:none;border-radius:4px;cursor:pointer">Try Again</button>
-                    </div>`;
+                // Auto-retry up to 3 times with increasing delay
+                if (clusterLoadAttempts < 3) {
+                    setTimeout(() => loadClustersAndShow(), clusterLoadAttempts * 2000);
+                } else {
+                    clusterLoadAttempts = 0; // Reset for manual retry
+                    resultsList.innerHTML = `
+                        <div class="empty-state" style="text-align:center">
+                            <p>Could not load clusters after 3 attempts.</p>
+                            <button onclick="loadClustersAndShow()" style="margin-top:1rem;padding:8px 16px;background:var(--accent);color:white;border:none;border-radius:4px;cursor:pointer">Try Again</button>
+                        </div>`;
+                }
             }
         }
 
