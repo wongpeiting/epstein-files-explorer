@@ -1052,12 +1052,40 @@
     </div>
 
     <script>
-        // API Base URL - change this when deploying frontend separately
-        // For local dev: '' (empty string uses same origin)
-        // For GitHub Pages: 'https://your-render-app.onrender.com'
-        const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? ''
-            : 'https://epstein-api.onrender.com';  // Update this after deploying backend
+        // HuggingFace Space Gradio API
+        const HF_SPACE = 'https://cjc0013-epstein-corpus-explorer.hf.space';
+
+        // Gradio API helper - calls HuggingFace Space endpoints
+        async function gradioCall(fnName, data) {
+            // Step 1: Submit the call
+            const submitRes = await fetch(`${HF_SPACE}/call/${fnName}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ data })
+            });
+            const { event_id } = await submitRes.json();
+
+            // Step 2: Get result via SSE
+            return new Promise((resolve, reject) => {
+                const eventSource = new EventSource(`${HF_SPACE}/call/${fnName}/${event_id}`);
+                eventSource.onmessage = (event) => {
+                    const parsed = JSON.parse(event.data);
+                    if (parsed.msg === 'process_completed') {
+                        eventSource.close();
+                        resolve(parsed.output);
+                    }
+                };
+                eventSource.onerror = (err) => {
+                    eventSource.close();
+                    reject(err);
+                };
+                // Timeout after 30s
+                setTimeout(() => {
+                    eventSource.close();
+                    reject(new Error('Timeout'));
+                }, 30000);
+            });
+        }
 
         // State
         let state = {
@@ -1100,32 +1128,21 @@
         // Tooltip cache
         const tooltipCache = {};
 
-        // Show cluster tooltip
+        // Show cluster tooltip - simplified version without API preview
         async function showClusterTooltip(clusterId, x, y) {
             tooltipTitle.textContent = `Cluster ${clusterId}`;
-            tooltipPreviews.innerHTML = '<div class="preview">Loading...</div>';
 
             // Position tooltip
             clusterTooltip.style.left = Math.min(x + 15, window.innerWidth - 370) + 'px';
             clusterTooltip.style.top = Math.min(y + 15, window.innerHeight - 200) + 'px';
             clusterTooltip.classList.add('active');
 
-            // Fetch preview if not cached
-            if (!tooltipCache[clusterId]) {
-                try {
-                    const res = await fetch(`${API}/api/cluster/${clusterId}/preview`);
-                    tooltipCache[clusterId] = await res.json();
-                } catch (e) {
-                    tooltipCache[clusterId] = { previews: ['Failed to load preview'] };
-                }
-            }
+            // Find cluster info from loaded data
+            const cluster = state.clusters.find(c => c.cluster_id == clusterId);
+            const nChunks = cluster ? cluster.n_chunks : 0;
 
-            const data = tooltipCache[clusterId];
-            const sizeText = data.n_chunks ? `<div style="font-size:0.7rem;margin-bottom:0.5rem;color:var(--accent)">${data.n_chunks.toLocaleString()} documents</div>` : '';
-
-            tooltipPreviews.innerHTML = sizeText + (data.previews || []).map(p =>
-                `<div class="preview">"${escapeHtml(p)}"</div>`
-            ).join('');
+            const sizeText = nChunks ? `<div style="font-size:0.7rem;margin-bottom:0.5rem;color:var(--accent)">${nChunks.toLocaleString()} documents</div>` : '';
+            tooltipPreviews.innerHTML = sizeText + '<div class="preview">Click to explore documents in this cluster</div>';
         }
 
         function hideClusterTooltip() {
@@ -1139,23 +1156,42 @@
             setupEventListeners();
         }
 
-        // Load clusters for landing page display
+        // Load clusters for landing page display using Gradio API
         async function loadLandingClusters() {
             const container = document.getElementById('landingClusters');
             if (!container) return;
 
             try {
-                const res = await fetch(`${API}/api/clusters`);
-                const data = await res.json();
+                const result = await gradioCall('ui_load_clusters_all', [50]); // top 50 clusters
+                // result[0] is cluster table, result[1] is dropdown choices, result[2] is status
+                const clusterTable = result[0];
+
+                if (!clusterTable || !clusterTable.data) {
+                    container.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem">No clusters found</div>';
+                    return;
+                }
+
+                // Parse cluster data: columns are [run_label, cluster_id, n_chunks, etc.]
+                const clusters = clusterTable.data.map(row => ({
+                    run_label: row[0],
+                    cluster_id: row[1],
+                    n_chunks: parseInt(row[2]) || 0
+                }));
+
+                // Update cluster count stat
+                document.getElementById('statClusters').textContent = clusters.length.toLocaleString();
+
+                // Store for later use
+                state.clusters = clusters;
 
                 // Create color scale
                 const colors = ['#3498db', '#9b59b6', '#e74c3c', '#f39c12', '#1abc9c', '#34495e', '#e91e63', '#00bcd4'];
 
-                container.innerHTML = data.clusters.map((c, i) => {
+                container.innerHTML = clusters.slice(0, 30).map((c, i) => {
                     const size = Math.max(28, Math.min(50, 20 + Math.sqrt(c.n_chunks) / 3));
                     const color = colors[i % colors.length];
                     return `
-                        <div class="landing-cluster" data-cluster="${c.cluster_id}"
+                        <div class="landing-cluster" data-cluster="${c.cluster_id}" data-run="${c.run_label}"
                              style="width:${size}px;height:${size}px;background:${color};border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:0.65rem;color:white;font-weight:500;opacity:0.85;transition:all 0.15s"
                              title="Cluster ${c.cluster_id}: ${c.n_chunks.toLocaleString()} docs"
                              onmouseover="this.style.opacity=1;this.style.transform='scale(1.1)'"
@@ -1168,36 +1204,52 @@
                 // Add click handlers
                 container.querySelectorAll('.landing-cluster').forEach(el => {
                     el.addEventListener('click', () => {
-                        const clusterId = parseInt(el.dataset.cluster);
-                        loadClusterSamples(clusterId);
+                        const clusterId = el.dataset.cluster;
+                        const runLabel = el.dataset.run;
+                        loadClusterSamples(clusterId, runLabel);
                     });
                 });
             } catch (e) {
+                console.error('Failed to load clusters:', e);
                 container.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem">Failed to load clusters</div>';
             }
         }
 
-        // Load statistics
+        // Load statistics using Gradio API
         async function loadStats() {
             try {
-                const res = await fetch(`${API}/api/stats`);
-                const data = await res.json();
-                document.getElementById('statDocs').textContent = data.total_docs?.toLocaleString() || '-';
-                document.getElementById('statChunks').textContent = data.total_chunks?.toLocaleString() || '-';
-                document.getElementById('statClusters').textContent = data.total_clusters?.toLocaleString() || '-';
+                const result = await gradioCall('ui_reload_meta', []);
+                // result[0] is the meta table data, result[1] is status
+                const metaTable = result[0];
+                if (metaTable && metaTable.data) {
+                    const meta = {};
+                    metaTable.data.forEach(row => {
+                        meta[row[0]] = row[1];
+                    });
+                    document.getElementById('statDocs').textContent = meta['n_docs']?.toLocaleString() || '-';
+                    document.getElementById('statChunks').textContent = meta['n_chunks']?.toLocaleString() || '-';
+                    // Clusters loaded separately
+                }
             } catch (e) {
                 console.error('Failed to load stats:', e);
             }
         }
 
-        // Load clusters
+        // Load clusters using Gradio API
         async function loadClusters() {
             try {
-                const res = await fetch(`${API}/api/clusters`);
-                const data = await res.json();
-                state.clusters = data.clusters || [];
-                renderClusterList();
-                renderClusterViz('bubble');
+                const result = await gradioCall('ui_load_clusters_all', [100]);
+                const clusterTable = result[0];
+
+                if (clusterTable && clusterTable.data) {
+                    state.clusters = clusterTable.data.map(row => ({
+                        run_label: row[0],
+                        cluster_id: row[1],
+                        n_chunks: parseInt(row[2]) || 0
+                    }));
+                    renderClusterList();
+                    renderClusterViz('bubble');
+                }
             } catch (e) {
                 console.error('Failed to load clusters:', e);
                 clusterList.innerHTML = '<div class="empty-state">Failed to load clusters</div>';
@@ -1462,7 +1514,8 @@
             search();
         }
 
-        // Search with combined filters
+        // Search with combined filters using Gradio API
+        // Note: Gradio API does single search, so we combine terms with spaces and filter client-side
         async function searchWithFilters(append = false) {
             if (state.selectedTags.length === 0) {
                 // No filters, show empty state
@@ -1487,22 +1540,54 @@
             state.isLoading = true;
 
             try {
-                const params = new URLSearchParams({
-                    terms: state.selectedTags.join(','),
-                    limit: state.limit,
-                    offset: state.page * state.limit
-                });
+                // Search for all terms combined - Gradio will do OR, we filter to AND
+                const combinedQuery = state.selectedTags.join(' ');
+                const result = await gradioCall('ui_search', [combinedQuery, 500, '', 3]);
 
-                const res = await fetch(`${API}/api/search/combined?${params}`);
-                const data = await res.json();
+                const resultsTable = result[2];
 
-                if (append) {
-                    state.results = state.results.concat(data.results || []);
+                if (!resultsTable || !resultsTable.data) {
+                    state.results = [];
+                    state.total = 0;
                 } else {
-                    state.results = data.results || [];
+                    const headers = resultsTable.headers || [];
+                    const uidIdx = headers.indexOf('uid') >= 0 ? headers.indexOf('uid') : 0;
+                    const docIdx = headers.indexOf('doc_id') >= 0 ? headers.indexOf('doc_id') : 1;
+                    const srcIdx = headers.indexOf('source_file') >= 0 ? headers.indexOf('source_file') : 2;
+                    const textIdx = headers.indexOf('text') >= 0 ? headers.indexOf('text') : 3;
+                    const clusterIdx = headers.indexOf('cluster_id') >= 0 ? headers.indexOf('cluster_id') : 4;
+
+                    // Filter to only results containing ALL terms (AND logic)
+                    const allResults = resultsTable.data.map(row => ({
+                        uid: row[uidIdx],
+                        doc_id: row[docIdx] || row[uidIdx],
+                        source_file: row[srcIdx] || 'Unknown',
+                        text: row[textIdx] || '',
+                        cluster_id: row[clusterIdx] || null
+                    })).filter(r => {
+                        const textLower = r.text.toLowerCase();
+                        return state.selectedTags.every(tag => {
+                            const tagLower = tag.toLowerCase().replace(/"/g, '');
+                            return textLower.includes(tagLower);
+                        });
+                    });
+
+                    // Apply highlighting and truncation
+                    const processedResults = allResults.map(r => ({
+                        ...r,
+                        text: r.text.substring(0, 500),
+                        text_highlighted: highlightText(r.text.substring(0, 500), state.selectedTags.join(' '))
+                    }));
+
+                    if (append) {
+                        state.results = state.results.concat(processedResults);
+                    } else {
+                        state.results = processedResults.slice(0, state.limit);
+                    }
+                    state.total = allResults.length;
                 }
-                state.total = data.total || 0;
                 state.searchMode = 'combined';
+                state.hasMore = false;
 
                 renderResults(append);
             } catch (e) {
@@ -1515,7 +1600,7 @@
             }
         }
 
-        // Search
+        // Search using Gradio API
         let searchTimeout;
         async function search(append = false) {
             const query = searchInput.value.trim();
@@ -1543,23 +1628,44 @@
             state.isLoading = true;
 
             try {
-                const params = new URLSearchParams({
-                    q: query,
-                    fuzzy: state.fuzzy,
-                    limit: state.limit,
-                    offset: state.page * state.limit
-                });
+                // Gradio ui_search: [query, limit, cluster_filter, context_window]
+                const limit = state.limit;
+                const clusterFilter = state.clusterId ? String(state.clusterId) : '';
+                const result = await gradioCall('ui_search', [query, limit, clusterFilter, 3]);
 
-                const res = await fetch(`${API}/api/search?${params}`);
-                const data = await res.json();
+                // result[0] = dropdown choices, result[1] = uid, result[2] = results table, result[3] = status
+                const resultsTable = result[2];
 
-                if (append) {
-                    state.results = state.results.concat(data.results || []);
+                if (!resultsTable || !resultsTable.data) {
+                    state.results = [];
+                    state.total = 0;
                 } else {
-                    state.results = data.results || [];
+                    // Parse results: columns are likely [uid, doc_id, source_file, text_preview, cluster_id, etc.]
+                    const headers = resultsTable.headers || [];
+                    const uidIdx = headers.indexOf('uid') >= 0 ? headers.indexOf('uid') : 0;
+                    const docIdx = headers.indexOf('doc_id') >= 0 ? headers.indexOf('doc_id') : 1;
+                    const srcIdx = headers.indexOf('source_file') >= 0 ? headers.indexOf('source_file') : 2;
+                    const textIdx = headers.indexOf('text') >= 0 ? headers.indexOf('text') : 3;
+                    const clusterIdx = headers.indexOf('cluster_id') >= 0 ? headers.indexOf('cluster_id') : 4;
+
+                    const newResults = resultsTable.data.map(row => ({
+                        uid: row[uidIdx],
+                        doc_id: row[docIdx] || row[uidIdx],
+                        source_file: row[srcIdx] || 'Unknown',
+                        text: (row[textIdx] || '').substring(0, 500),
+                        text_highlighted: highlightText(row[textIdx] || '', query).substring(0, 500),
+                        cluster_id: row[clusterIdx] || null
+                    }));
+
+                    if (append) {
+                        state.results = state.results.concat(newResults);
+                    } else {
+                        state.results = newResults;
+                    }
+                    state.total = resultsTable.data.length;
                 }
-                state.total = data.total || 0;
-                state.searchMode = data.search_mode || 'standard';
+                state.searchMode = 'standard';
+                state.hasMore = false; // Gradio API doesn't support pagination directly
 
                 renderResults(append);
             } catch (e) {
@@ -1570,6 +1676,18 @@
             } finally {
                 state.isLoading = false;
             }
+        }
+
+        // Client-side text highlighting
+        function highlightText(text, query) {
+            if (!query || !text) return text;
+            const words = query.split(/\s+/).filter(w => w.length > 0);
+            let result = text;
+            for (const word of words) {
+                const regex = new RegExp(`(${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+                result = result.replace(regex, '<mark>$1</mark>');
+            }
+            return result;
         }
 
         // Load more results (infinite scroll)
@@ -1587,16 +1705,41 @@
             }
         }
 
-        // Load cluster samples
-        async function loadClusterSamples(clusterId) {
+        // Load cluster samples using Gradio API
+        async function loadClusterSamples(clusterId, runLabel = null) {
             resultsList.innerHTML = '<div class="loading"><div class="spinner"></div>Loading cluster...</div>';
 
             try {
-                const res = await fetch(`${API}/api/cluster/${clusterId}?limit=${state.limit}`);
-                const data = await res.json();
+                // Gradio ui_load_cluster_chunks: [cluster_choice, limit]
+                // cluster_choice format: "run_label | cluster_id" or just cluster_id string
+                const clusterChoice = runLabel ? `${runLabel} | ${clusterId}` : String(clusterId);
+                const result = await gradioCall('ui_load_cluster_chunks', [clusterChoice, state.limit]);
 
-                state.results = data.samples || [];
-                state.total = state.results.length;
+                // result[0] = chunks table, result[1] = dropdown, result[2] = uid, result[3] = status
+                const chunksTable = result[0];
+
+                if (!chunksTable || !chunksTable.data) {
+                    state.results = [];
+                    state.total = 0;
+                } else {
+                    // Parse chunks: columns likely [uid, doc_id, source_file, text_preview, cluster_prob]
+                    const headers = chunksTable.headers || [];
+                    const uidIdx = headers.indexOf('uid') >= 0 ? headers.indexOf('uid') : 0;
+                    const srcIdx = headers.indexOf('source_file') >= 0 ? headers.indexOf('source_file') : 2;
+                    const textIdx = headers.indexOf('text') >= 0 ? headers.indexOf('text') : 3;
+
+                    state.results = chunksTable.data.map(row => ({
+                        uid: row[uidIdx],
+                        doc_id: row[uidIdx],
+                        source_file: row[srcIdx] || 'Unknown',
+                        text: (row[textIdx] || '').substring(0, 500),
+                        text_highlighted: (row[textIdx] || '').substring(0, 500),
+                        cluster_id: clusterId
+                    }));
+                    state.total = chunksTable.data.length;
+                }
+                state.clusterId = clusterId;
+                state.hasMore = false;
 
                 renderResults();
             } catch (e) {
@@ -1605,24 +1748,29 @@
             }
         }
 
-        // Load random samples
+        // Load random samples - using a common search term since Gradio API doesn't have random endpoint
         async function loadRandom() {
-            resultsList.innerHTML = '<div class="loading"><div class="spinner"></div>Loading random samples...</div>';
+            resultsList.innerHTML = '<div class="loading"><div class="spinner"></div>Loading samples...</div>';
 
             try {
-                const res = await fetch(`${API}/api/random?limit=20`);
-                const data = await res.json();
-
-                state.results = data.samples || [];
-                state.total = state.results.length;
-                state.clusterId = null;
-                state.query = '';
-                searchInput.value = '';
-
-                updateClusterSelection();
-                renderResults();
+                // Pick a random cluster to explore
+                if (state.clusters && state.clusters.length > 0) {
+                    const randomIdx = Math.floor(Math.random() * Math.min(state.clusters.length, 20));
+                    const cluster = state.clusters[randomIdx];
+                    await loadClusterSamples(cluster.cluster_id, cluster.run_label);
+                    state.query = '';
+                    searchInput.value = '';
+                    updateClusterSelection();
+                } else {
+                    // Fallback: search for common term
+                    const commonTerms = ['email', 'meeting', 'flight', 'dinner', 'call'];
+                    const randomTerm = commonTerms[Math.floor(Math.random() * commonTerms.length)];
+                    searchInput.value = randomTerm;
+                    await search();
+                }
             } catch (e) {
                 console.error('Failed to load random:', e);
+                resultsList.innerHTML = '<div class="empty-state">Failed to load samples.</div>';
             }
         }
 
@@ -1661,7 +1809,7 @@
             }
 
             const resultsHtml = state.results.map(r => `
-                <div class="result-card" data-doc="${r.doc_id}">
+                <div class="result-card" data-doc="${r.uid || r.doc_id}">
                     <div class="result-header">
                         <div class="result-source">${escapeHtml(r.source_file || 'Unknown source')}</div>
                         ${r.cluster_id !== null ? `<span class="result-cluster" style="background:${colorScale(r.cluster_id)}40">Cluster ${r.cluster_id}</span>` : ''}
@@ -1746,18 +1894,27 @@
             return headers;
         }
 
-        // Open document modal
+        // Open document modal using Gradio API
         async function openDocument(docId) {
             modalOverlay.classList.add('active');
             modalTitle.textContent = 'Loading...';
             modalBody.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--text-secondary)">Loading document...</div>';
 
             try {
-                const res = await fetch(`${API}/api/document/${docId}`);
-                const data = await res.json();
-                const fullText = data.full_text || 'No content available';
+                // Gradio ui_open_uid: [uid, context_window]
+                const result = await gradioCall('ui_open_uid', [docId, 5]);
 
-                modalTitle.textContent = data.meta?.source_file || docId;
+                // result[0] = meta JSON string, result[1] = text, result[2] = context dataframe, result[3] = status
+                let meta = {};
+                try {
+                    meta = typeof result[0] === 'string' ? JSON.parse(result[0]) : result[0];
+                } catch (e) {
+                    // Meta might be plain object or markdown formatted
+                    if (typeof result[0] === 'object') meta = result[0];
+                }
+
+                const fullText = result[1] || 'No content available';
+                modalTitle.textContent = meta.source_file || docId;
 
                 // Parse as email
                 const email = parseEmailHeaders(fullText);
@@ -1783,40 +1940,16 @@
                     modalBody.innerHTML = `<div class="email-body">${escapeHtml(fullText)}</div>`;
                 }
             } catch (e) {
+                console.error('Failed to load document:', e);
                 modalBody.innerHTML = '<div style="color:var(--danger);padding:1rem">Failed to load document.</div>';
             }
         }
 
-        // Get suggestions
+        // Get suggestions - simplified since Gradio API doesn't have suggest endpoint
         async function getSuggestions(query) {
-            if (query.length < 2) {
-                suggestions.classList.remove('active');
-                return;
-            }
-
-            try {
-                const res = await fetch(`${API}/api/suggest?q=${encodeURIComponent(query)}`);
-                const data = await res.json();
-
-                if (data.suggestions?.length) {
-                    suggestions.innerHTML = data.suggestions.map(s =>
-                        `<div class="suggestion-item">${escapeHtml(s)}</div>`
-                    ).join('');
-                    suggestions.classList.add('active');
-
-                    suggestions.querySelectorAll('.suggestion-item').forEach(el => {
-                        el.addEventListener('click', () => {
-                            searchInput.value = el.textContent;
-                            suggestions.classList.remove('active');
-                            search();
-                        });
-                    });
-                } else {
-                    suggestions.classList.remove('active');
-                }
-            } catch (e) {
-                suggestions.classList.remove('active');
-            }
+            // Disable suggestions for now - Gradio API doesn't have a suggest endpoint
+            // Could implement client-side suggestions from previous results if needed
+            suggestions.classList.remove('active');
         }
 
         // Event listeners
@@ -1964,29 +2097,51 @@
                     if (!clustersLoaded) {
                         clusterList.innerHTML = '<div style="padding:0.5rem;color:var(--text-secondary)">Loading clusters...</div>';
                         try {
-                            const res = await fetch(`${API}/api/clusters`);
-                            const data = await res.json();
-                            clusterList.innerHTML = data.clusters.map(c => `
-                                <div class="cluster-item" data-cluster="${c.cluster_id}" style="font-size:0.75rem;padding:0.4rem 0.6rem;margin-bottom:0.25rem">
-                                    <span style="color:var(--text-secondary)">Cluster ${c.cluster_id}</span>
-                                    <span style="float:right;color:var(--text-muted)">${c.n_chunks.toLocaleString()}</span>
-                                </div>
-                            `).join('');
+                            // Use cached clusters or load via Gradio API
+                            if (state.clusters && state.clusters.length > 0) {
+                                renderClusterBrowserList(state.clusters);
+                                clustersLoaded = true;
+                            } else {
+                                const result = await gradioCall('ui_load_clusters_all', [100]);
+                                const clusterTable = result[0];
 
-                            // Add click handlers for clusters
-                            clusterList.querySelectorAll('.cluster-item').forEach(el => {
-                                el.addEventListener('click', () => {
-                                    const clusterId = parseInt(el.dataset.cluster);
-                                    loadClusterSamples(clusterId);
-                                });
-                            });
-
-                            clustersLoaded = true;
+                                if (clusterTable && clusterTable.data) {
+                                    const clusters = clusterTable.data.map(row => ({
+                                        run_label: row[0],
+                                        cluster_id: row[1],
+                                        n_chunks: parseInt(row[2]) || 0
+                                    }));
+                                    state.clusters = clusters;
+                                    renderClusterBrowserList(clusters);
+                                    clustersLoaded = true;
+                                } else {
+                                    clusterList.innerHTML = '<div style="padding:0.5rem;color:var(--text-muted)">No clusters found</div>';
+                                }
+                            }
                         } catch (e) {
+                            console.error('Failed to load clusters:', e);
                             clusterList.innerHTML = '<div style="padding:0.5rem;color:var(--danger)">Failed to load clusters</div>';
                         }
                     }
                 }
+            }
+
+            function renderClusterBrowserList(clusters) {
+                clusterList.innerHTML = clusters.map(c => `
+                    <div class="cluster-item" data-cluster="${c.cluster_id}" data-run="${c.run_label}" style="font-size:0.75rem;padding:0.4rem 0.6rem;margin-bottom:0.25rem">
+                        <span style="color:var(--text-secondary)">Cluster ${c.cluster_id}</span>
+                        <span style="float:right;color:var(--text-muted)">${c.n_chunks.toLocaleString()}</span>
+                    </div>
+                `).join('');
+
+                // Add click handlers for clusters
+                clusterList.querySelectorAll('.cluster-item').forEach(el => {
+                    el.addEventListener('click', () => {
+                        const clusterId = el.dataset.cluster;
+                        const runLabel = el.dataset.run;
+                        loadClusterSamples(clusterId, runLabel);
+                    });
+                });
             }
 
             // Click handlers for both header stat and sidebar toggle
