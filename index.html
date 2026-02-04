@@ -2354,6 +2354,7 @@
             if (clusterToggle) clusterToggle.addEventListener('click', toggleClusterBrowser);
 
             // Show cluster visualization immediately (uses pre-loaded data)
+            document.getElementById('statClusters').textContent = state.clusters.length.toLocaleString();
             showClusterOverview();
         }
 
