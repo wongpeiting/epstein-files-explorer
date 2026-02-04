@@ -1,0 +1,13 @@
+# Data files (too large for GitHub)
+data/
+*.sqlite
+*.db
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.env
+
+# OS
+.DS_Store
