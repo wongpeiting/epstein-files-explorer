@@ -2177,10 +2177,10 @@
                 const maxChunks = d3.max(clusters, d => d.n_chunks) || 1;
 
                 // Scale radius based on node count
-                const maxRadius = Math.min(50, Math.max(20, 300 / Math.sqrt(clusters.length)));
+                const maxRadius = Math.min(70, Math.max(30, 450 / Math.sqrt(clusters.length)));
                 const radiusScale = d3.scaleSqrt()
                     .domain([0, maxChunks])
-                    .range([8, maxRadius]);
+                    .range([12, maxRadius]);
 
                 // Initialize nodes with spiral positions (prevents "big bang" effect)
                 const nodes = clusters.map((c, i) => {
