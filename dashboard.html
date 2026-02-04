@@ -1068,17 +1068,32 @@
             // Step 2: Get result via SSE
             return new Promise((resolve, reject) => {
                 const eventSource = new EventSource(`${HF_SPACE}/gradio_api/call/${fnName}/${event_id}`);
-                eventSource.onmessage = (event) => {
-                    const parsed = JSON.parse(event.data);
-                    if (parsed.msg === 'process_completed') {
-                        eventSource.close();
-                        resolve(parsed.output);
+
+                eventSource.addEventListener('complete', (event) => {
+                    eventSource.close();
+                    try {
+                        const data = JSON.parse(event.data);
+                        resolve(data);
+                    } catch (e) {
+                        reject(e);
                     }
-                };
+                });
+
+                eventSource.addEventListener('error', (event) => {
+                    eventSource.close();
+                    try {
+                        const data = JSON.parse(event.data);
+                        reject(new Error(data));
+                    } catch (e) {
+                        reject(new Error('API error'));
+                    }
+                });
+
                 eventSource.onerror = (err) => {
                     eventSource.close();
                     reject(err);
                 };
+
                 // Timeout after 30s
                 setTimeout(() => {
                     eventSource.close();
