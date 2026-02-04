@@ -1058,7 +1058,7 @@
         // Gradio API helper - calls HuggingFace Space endpoints
         async function gradioCall(fnName, data) {
             // Step 1: Submit the call
-            const submitRes = await fetch(`${HF_SPACE}/call/${fnName}`, {
+            const submitRes = await fetch(`${HF_SPACE}/gradio_api/call/${fnName}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ data })
@@ -1067,7 +1067,7 @@
 
             // Step 2: Get result via SSE
             return new Promise((resolve, reject) => {
-                const eventSource = new EventSource(`${HF_SPACE}/call/${fnName}/${event_id}`);
+                const eventSource = new EventSource(`${HF_SPACE}/gradio_api/call/${fnName}/${event_id}`);
                 eventSource.onmessage = (event) => {
                     const parsed = JSON.parse(event.data);
                     if (parsed.msg === 'process_completed') {
