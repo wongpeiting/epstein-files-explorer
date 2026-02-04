@@ -1145,6 +1145,7 @@
                     <span class="tag" data-search="Japan">Japan</span>
                     <span class="tag" data-search="Korea">Korea</span>
                     <span class="tag" data-search="Thailand">Thailand</span>
+                    <span class="tag" data-search="Pakistan">Pakistan</span>
                     <span class="tag" data-search="Indonesia">Indonesia</span>
                     <span class="tag" data-search="Malaysia">Malaysia</span>
                     <span class="tag" data-search="Vietnam">Vietnam</span>
@@ -2189,7 +2190,7 @@
                 <div class="result-card" data-doc="${r.uid || r.doc_id}">
                     <div class="result-header">
                         <div class="result-source">${escapeHtml(r.source_file || 'Unknown source')}</div>
-                        ${r.cluster_id !== null ? `<span class="result-cluster" style="background:${colorScale(r.cluster_id)}40">Cluster ${r.cluster_id}</span>` : ''}
+                        ${r.cluster_id !== null ? `<span class="result-cluster cluster-link" data-cluster="${r.cluster_id}" style="background:${colorScale(r.cluster_id)}40;cursor:pointer" title="Click to explore Cluster ${r.cluster_id}">Cluster ${r.cluster_id}</span>` : ''}
                         <span class="result-cluster" style="background:var(--bg-tertiary)">Nov 2025</span>
                     </div>
                     <div class="result-text">${r.text_highlighted || escapeHtml(r.text || '')}</div>
@@ -2369,6 +2370,15 @@
         function setupEventListeners() {
             // Event delegation for result cards (prevents listener accumulation bug)
             resultsList.addEventListener('click', (e) => {
+                // Handle cluster link clicks
+                const clusterLink = e.target.closest('.cluster-link');
+                if (clusterLink && clusterLink.dataset.cluster) {
+                    e.stopPropagation();
+                    const clusterId = parseInt(clusterLink.dataset.cluster);
+                    loadClusterSamples(clusterId, 'content');
+                    return;
+                }
+                // Handle result card clicks
                 const card = e.target.closest('.result-card');
                 if (card && card.dataset.doc) {
                     openDocument(card.dataset.doc);
