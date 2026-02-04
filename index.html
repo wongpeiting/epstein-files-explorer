@@ -1405,38 +1405,48 @@
         let jan2026IndexLoaded = false;
 
         // Load Jan 2026 index
+        let jan2026LoadPromise = null;
         async function loadJan2026Index() {
             if (jan2026IndexLoaded) return;
-            try {
-                const res = await fetch('jan2026-index.json');
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                jan2026Index = await res.json();
-                jan2026IndexLoaded = true;
-                console.log('Jan 2026 index loaded:', jan2026Index.length, 'files');
-                // If user has an active search, re-render to show Jan 2026 results
-                if (state.query || state.selectedTags.length > 0) {
-                    console.log('Re-rendering with Jan 2026 results');
-                    renderResults();
+            if (jan2026LoadPromise) return jan2026LoadPromise;
+
+            jan2026LoadPromise = (async () => {
+                try {
+                    console.log('Loading Jan 2026 index...');
+                    const res = await fetch('jan2026-index.json');
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    jan2026Index = await res.json();
+                    jan2026IndexLoaded = true;
+                    console.log('Jan 2026 index loaded:', jan2026Index.length, 'files');
+                    // If user has an active search, re-render to show Jan 2026 results
+                    if (state.query || state.selectedTags.length > 0) {
+                        console.log('Re-rendering with Jan 2026 results for query:', state.query);
+                        renderResults();
+                    }
+                } catch (e) {
+                    console.error('Failed to load Jan 2026 index:', e);
+                    jan2026LoadPromise = null; // Allow retry
                 }
-            } catch (e) {
-                console.error('Failed to load Jan 2026 index:', e);
-            }
+            })();
+            return jan2026LoadPromise;
         }
 
         // Search Jan 2026 files by filename AND content preview
         function searchJan2026(query) {
+            if (!query) return [];
             if (!jan2026IndexLoaded) {
-                console.log('Jan 2026 index not loaded yet, attempting load...');
-                loadJan2026Index(); // Try loading again
+                console.log('Jan 2026 index not loaded yet for query:', query);
+                // Trigger load and re-render when ready
+                loadJan2026Index();
                 return [];
             }
-            if (!query) return [];
             const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+            if (terms.length === 0) return [];
             const results = jan2026Index.filter(file => {
                 const searchText = (file.name + ' ' + (file.preview || '')).toLowerCase();
                 return terms.every(term => searchText.includes(term));
             }).slice(0, 50);
-            console.log(`Jan 2026 search for "${query}": ${results.length} matches`);
+            console.log(`Jan 2026 search for "${query}": ${results.length} matches (index has ${jan2026Index.length} files)`);
             return results;
         }
 
@@ -2126,9 +2136,12 @@
             const searchNote = document.getElementById('searchNote');
 
             // Also search Jan 2026 files if we have a query
-            const jan2026Results = (state.query || state.selectedTags.length > 0)
-                ? searchJan2026(state.query || state.selectedTags.join(' '))
+            const searchQuery = state.query || state.selectedTags.join(' ');
+            console.log('renderResults called, query:', searchQuery, 'jan2026IndexLoaded:', jan2026IndexLoaded);
+            const jan2026Results = searchQuery
+                ? searchJan2026(searchQuery)
                 : [];
+            console.log('Jan 2026 results:', jan2026Results.length);
 
             if (!state.results.length && !jan2026Results.length) {
                 resultsList.innerHTML = '<div class="empty-state"><h3>No results found</h3><p>Try different keywords or enable fuzzy search.</p></div>';
