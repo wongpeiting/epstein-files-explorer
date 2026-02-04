@@ -7,21 +7,21 @@
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
         :root {
-            --bg-primary: #ffffff;
-            --bg-secondary: #f8f9fa;
-            --bg-tertiary: #e9ecef;
-            --bg-hover: #dee2e6;
-            --text-primary: #212529;
-            --text-secondary: #495057;
-            --text-muted: #6c757d;
-            --accent: #0066cc;
-            --accent-hover: #0052a3;
-            --accent-light: rgba(0, 102, 204, 0.1);
-            --border: #dee2e6;
-            --border-light: #e9ecef;
-            --success: #198754;
-            --warning: #ffc107;
-            --danger: #dc3545;
+            --bg-primary: #fafafa;
+            --bg-secondary: #f5f5f4;
+            --bg-tertiary: #e7e5e4;
+            --bg-hover: #d6d3d1;
+            --text-primary: #1c1917;
+            --text-secondary: #44403c;
+            --text-muted: #78716c;
+            --accent: #57534e;
+            --accent-hover: #44403c;
+            --accent-light: rgba(87, 83, 78, 0.1);
+            --border: #d6d3d1;
+            --border-light: #e7e5e4;
+            --success: #4d7c0f;
+            --warning: #a16207;
+            --danger: #b91c1c;
             --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
             --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
         }
@@ -2139,7 +2139,7 @@
 
             // Show cluster overview in main content
             function showClusterOverview() {
-                resultsCount.innerHTML = `<span>${state.clusters.length}</span> clusters in corpus`;
+                resultsCount.textContent = '';
 
                 resultsList.innerHTML = `
                     <div style="padding:1rem">
@@ -2156,7 +2156,10 @@
 
             // Force layout for landing page (smaller)
             function renderLandingForceLayout(container, clusters) {
-                const colors = ['#3498db', '#9b59b6', '#e74c3c', '#f39c12', '#1abc9c', '#34495e', '#e91e63', '#00bcd4'];
+                if (!container || !clusters || !clusters.length) return;
+
+                // Muted, serious color palette for investigative/archival content
+                const colors = ['#4a5568', '#5a6b7c', '#6b7d8c', '#7c8b9c', '#566573', '#64748b', '#475569', '#5b6f7d'];
                 const width = container.clientWidth || 600;
                 const height = 350;
 
@@ -2175,9 +2178,11 @@
                 }));
 
                 const simulation = d3.forceSimulation(nodes)
-                    .force('charge', d3.forceManyBody().strength(3))
+                    .force('charge', d3.forceManyBody().strength(-2))
                     .force('center', d3.forceCenter(width / 2, height / 2))
-                    .force('collision', d3.forceCollide().radius(d => d.radius + 1.5))
+                    .force('collision', d3.forceCollide().radius(d => d.radius + 2))
+                    .force('x', d3.forceX(width / 2).strength(0.05))
+                    .force('y', d3.forceY(height / 2).strength(0.05))
                     .on('tick', ticked);
 
                 const node = svg.selectAll('.node')
@@ -2223,7 +2228,12 @@
                     .text(d => d.cluster_id);
 
                 function ticked() {
-                    node.attr('transform', d => `translate(${d.x},${d.y})`);
+                    // Clamp positions to stay within bounds
+                    node.attr('transform', d => {
+                        d.x = Math.max(d.radius, Math.min(width - d.radius, d.x));
+                        d.y = Math.max(d.radius, Math.min(height - d.radius, d.y));
+                        return `translate(${d.x},${d.y})`;
+                    });
                 }
 
                 function dragstarted(event, d) {
@@ -2233,8 +2243,8 @@
                 }
 
                 function dragged(event, d) {
-                    d.fx = event.x;
-                    d.fy = event.y;
+                    d.fx = Math.max(d.radius, Math.min(width - d.radius, event.x));
+                    d.fy = Math.max(d.radius, Math.min(height - d.radius, event.y));
                 }
 
                 function dragended(event, d) {
@@ -2246,7 +2256,10 @@
 
             // Force layout for cluster overview page (larger)
             function renderForceLayout(container, width, height) {
-                const colors = ['#3498db', '#9b59b6', '#e74c3c', '#f39c12', '#1abc9c', '#34495e', '#e91e63', '#00bcd4'];
+                if (!container || !state.clusters || !state.clusters.length) return;
+
+                // Muted, serious color palette for investigative/archival content
+                const colors = ['#4a5568', '#5a6b7c', '#6b7d8c', '#7c8b9c', '#566573', '#64748b', '#475569', '#5b6f7d'];
                 width = width || container.clientWidth || 800;
                 height = height || 600;
 
@@ -2266,9 +2279,11 @@
                 }));
 
                 const simulation = d3.forceSimulation(nodes)
-                    .force('charge', d3.forceManyBody().strength(5))
+                    .force('charge', d3.forceManyBody().strength(-3))
                     .force('center', d3.forceCenter(width / 2, height / 2))
                     .force('collision', d3.forceCollide().radius(d => d.radius + 2))
+                    .force('x', d3.forceX(width / 2).strength(0.04))
+                    .force('y', d3.forceY(height / 2).strength(0.04))
                     .on('tick', ticked);
 
                 const node = svg.selectAll('.node')
@@ -2314,7 +2329,12 @@
                     .text(d => d.cluster_id);
 
                 function ticked() {
-                    node.attr('transform', d => `translate(${d.x},${d.y})`);
+                    // Clamp positions to stay within bounds
+                    node.attr('transform', d => {
+                        d.x = Math.max(d.radius, Math.min(width - d.radius, d.x));
+                        d.y = Math.max(d.radius, Math.min(height - d.radius, d.y));
+                        return `translate(${d.x},${d.y})`;
+                    });
                 }
 
                 function dragstarted(event, d) {
@@ -2324,8 +2344,8 @@
                 }
 
                 function dragged(event, d) {
-                    d.fx = event.x;
-                    d.fy = event.y;
+                    d.fx = Math.max(d.radius, Math.min(width - d.radius, event.x));
+                    d.fy = Math.max(d.radius, Math.min(height - d.radius, event.y));
                 }
 
                 function dragended(event, d) {
