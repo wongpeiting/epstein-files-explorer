@@ -1177,17 +1177,18 @@
             if (!container) return;
 
             try {
-                const result = await gradioCall('ui_load_clusters_all', [50]); // top 50 clusters
+                const result = await gradioCall('ui_load_clusters_all', [500]); // get all clusters
                 // result[0] is cluster table, result[1] is dropdown choices, result[2] is status
                 const clusterTable = result[0];
 
-                if (!clusterTable || !clusterTable.data) {
+                if (!clusterTable || !clusterTable.data || clusterTable.data.length < 2) {
                     container.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem">No clusters found</div>';
                     return;
                 }
 
-                // Parse cluster data: columns are [run_label, cluster_id, n_chunks, etc.]
-                const clusters = clusterTable.data.map(row => ({
+                // Parse cluster data: first row is header, skip it
+                // columns are [run_label, cluster_id, n_chunks, etc.]
+                const clusters = clusterTable.data.slice(1).map(row => ({
                     run_label: row[0],
                     cluster_id: row[1],
                     n_chunks: parseInt(row[2]) || 0
@@ -1253,11 +1254,12 @@
         // Load clusters using Gradio API
         async function loadClusters() {
             try {
-                const result = await gradioCall('ui_load_clusters_all', [100]);
+                const result = await gradioCall('ui_load_clusters_all', [500]);
                 const clusterTable = result[0];
 
-                if (clusterTable && clusterTable.data) {
-                    state.clusters = clusterTable.data.map(row => ({
+                if (clusterTable && clusterTable.data && clusterTable.data.length > 1) {
+                    // Skip first row (header)
+                    state.clusters = clusterTable.data.slice(1).map(row => ({
                         run_label: row[0],
                         cluster_id: row[1],
                         n_chunks: parseInt(row[2]) || 0
@@ -1561,23 +1563,26 @@
 
                 const resultsTable = result[2];
 
-                if (!resultsTable || !resultsTable.data) {
+                if (!resultsTable || !resultsTable.data || resultsTable.data.length < 2) {
                     state.results = [];
                     state.total = 0;
                 } else {
-                    const headers = resultsTable.headers || [];
+                    // First row is headers, actual data starts at index 1
+                    const headers = resultsTable.data[0];
+                    const dataRows = resultsTable.data.slice(1);
+
                     const uidIdx = headers.indexOf('uid') >= 0 ? headers.indexOf('uid') : 0;
-                    const docIdx = headers.indexOf('doc_id') >= 0 ? headers.indexOf('doc_id') : 1;
-                    const srcIdx = headers.indexOf('source_file') >= 0 ? headers.indexOf('source_file') : 2;
-                    const textIdx = headers.indexOf('text') >= 0 ? headers.indexOf('text') : 3;
-                    const clusterIdx = headers.indexOf('cluster_id') >= 0 ? headers.indexOf('cluster_id') : 4;
+                    const docIdx = headers.indexOf('doc_id') >= 0 ? headers.indexOf('doc_id') : 3;
+                    const srcIdx = headers.indexOf('source_file') >= 0 ? headers.indexOf('source_file') : 4;
+                    const previewIdx = headers.indexOf('preview') >= 0 ? headers.indexOf('preview') : 6;
+                    const clusterIdx = headers.indexOf('cluster_id') >= 0 ? headers.indexOf('cluster_id') : 1;
 
                     // Filter to only results containing ALL terms (AND logic)
-                    const allResults = resultsTable.data.map(row => ({
+                    const allResults = dataRows.map(row => ({
                         uid: row[uidIdx],
                         doc_id: row[docIdx] || row[uidIdx],
                         source_file: row[srcIdx] || 'Unknown',
-                        text: row[textIdx] || '',
+                        text: row[previewIdx] || '',
                         cluster_id: row[clusterIdx] || null
                     })).filter(r => {
                         const textLower = r.text.toLowerCase();
@@ -1651,24 +1656,26 @@
                 // result[0] = dropdown choices, result[1] = uid, result[2] = results table, result[3] = status
                 const resultsTable = result[2];
 
-                if (!resultsTable || !resultsTable.data) {
+                if (!resultsTable || !resultsTable.data || resultsTable.data.length < 2) {
                     state.results = [];
                     state.total = 0;
                 } else {
-                    // Parse results: columns are likely [uid, doc_id, source_file, text_preview, cluster_id, etc.]
-                    const headers = resultsTable.headers || [];
-                    const uidIdx = headers.indexOf('uid') >= 0 ? headers.indexOf('uid') : 0;
-                    const docIdx = headers.indexOf('doc_id') >= 0 ? headers.indexOf('doc_id') : 1;
-                    const srcIdx = headers.indexOf('source_file') >= 0 ? headers.indexOf('source_file') : 2;
-                    const textIdx = headers.indexOf('text') >= 0 ? headers.indexOf('text') : 3;
-                    const clusterIdx = headers.indexOf('cluster_id') >= 0 ? headers.indexOf('cluster_id') : 4;
+                    // First row is headers, actual data starts at index 1
+                    const headers = resultsTable.data[0];
+                    const dataRows = resultsTable.data.slice(1);
 
-                    const newResults = resultsTable.data.map(row => ({
+                    const uidIdx = headers.indexOf('uid') >= 0 ? headers.indexOf('uid') : 0;
+                    const docIdx = headers.indexOf('doc_id') >= 0 ? headers.indexOf('doc_id') : 3;
+                    const srcIdx = headers.indexOf('source_file') >= 0 ? headers.indexOf('source_file') : 4;
+                    const previewIdx = headers.indexOf('preview') >= 0 ? headers.indexOf('preview') : 6;
+                    const clusterIdx = headers.indexOf('cluster_id') >= 0 ? headers.indexOf('cluster_id') : 1;
+
+                    const newResults = dataRows.map(row => ({
                         uid: row[uidIdx],
                         doc_id: row[docIdx] || row[uidIdx],
                         source_file: row[srcIdx] || 'Unknown',
-                        text: (row[textIdx] || '').substring(0, 500),
-                        text_highlighted: highlightText(row[textIdx] || '', query).substring(0, 500),
+                        text: (row[previewIdx] || '').substring(0, 500),
+                        text_highlighted: highlightText(row[previewIdx] || '', query).substring(0, 500),
                         cluster_id: row[clusterIdx] || null
                     }));
 
@@ -1677,7 +1684,7 @@
                     } else {
                         state.results = newResults;
                     }
-                    state.total = resultsTable.data.length;
+                    state.total = dataRows.length;
                 }
                 state.searchMode = 'standard';
                 state.hasMore = false; // Gradio API doesn't support pagination directly
@@ -1733,25 +1740,27 @@
                 // result[0] = chunks table, result[1] = dropdown, result[2] = uid, result[3] = status
                 const chunksTable = result[0];
 
-                if (!chunksTable || !chunksTable.data) {
+                if (!chunksTable || !chunksTable.data || chunksTable.data.length < 2) {
                     state.results = [];
                     state.total = 0;
                 } else {
-                    // Parse chunks: columns likely [uid, doc_id, source_file, text_preview, cluster_prob]
-                    const headers = chunksTable.headers || [];
-                    const uidIdx = headers.indexOf('uid') >= 0 ? headers.indexOf('uid') : 0;
-                    const srcIdx = headers.indexOf('source_file') >= 0 ? headers.indexOf('source_file') : 2;
-                    const textIdx = headers.indexOf('text') >= 0 ? headers.indexOf('text') : 3;
+                    // First row is headers, actual data starts at index 1
+                    const headers = chunksTable.data[0];
+                    const dataRows = chunksTable.data.slice(1);
 
-                    state.results = chunksTable.data.map(row => ({
+                    const uidIdx = headers.indexOf('uid') >= 0 ? headers.indexOf('uid') : 0;
+                    const srcIdx = headers.indexOf('source_file') >= 0 ? headers.indexOf('source_file') : 4;
+                    const previewIdx = headers.indexOf('preview') >= 0 ? headers.indexOf('preview') : 6;
+
+                    state.results = dataRows.map(row => ({
                         uid: row[uidIdx],
                         doc_id: row[uidIdx],
                         source_file: row[srcIdx] || 'Unknown',
-                        text: (row[textIdx] || '').substring(0, 500),
-                        text_highlighted: (row[textIdx] || '').substring(0, 500),
+                        text: (row[previewIdx] || '').substring(0, 500),
+                        text_highlighted: (row[previewIdx] || '').substring(0, 500),
                         cluster_id: clusterId
                     }));
-                    state.total = chunksTable.data.length;
+                    state.total = dataRows.length;
                 }
                 state.clusterId = clusterId;
                 state.hasMore = false;
@@ -2117,11 +2126,12 @@
                                 renderClusterBrowserList(state.clusters);
                                 clustersLoaded = true;
                             } else {
-                                const result = await gradioCall('ui_load_clusters_all', [100]);
+                                const result = await gradioCall('ui_load_clusters_all', [500]);
                                 const clusterTable = result[0];
 
-                                if (clusterTable && clusterTable.data) {
-                                    const clusters = clusterTable.data.map(row => ({
+                                if (clusterTable && clusterTable.data && clusterTable.data.length > 1) {
+                                    // Skip first row (header)
+                                    const clusters = clusterTable.data.slice(1).map(row => ({
                                         run_label: row[0],
                                         cluster_id: row[1],
                                         n_chunks: parseInt(row[2]) || 0
