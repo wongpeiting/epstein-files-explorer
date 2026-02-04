@@ -1727,34 +1727,33 @@
             }
         }
 
-        // Load cluster samples using Gradio API
+        // Load cluster samples using search with cluster filter
         async function loadClusterSamples(clusterId, runLabel = null) {
             resultsList.innerHTML = '<div class="loading"><div class="spinner"></div>Loading cluster...</div>';
 
             try {
-                // Gradio ui_load_cluster_chunks: [cluster_choice, limit]
-                // cluster_choice format: "run_label | cluster_id" or just cluster_id string
-                const clusterChoice = runLabel ? `${runLabel} | ${clusterId}` : String(clusterId);
-                const result = await gradioCall('ui_load_cluster_chunks', [clusterChoice, state.limit]);
+                // Use search with cluster filter - more reliable than ui_load_cluster_chunks
+                // ui_search: [query, limit, cluster_filter, context_window]
+                const result = await gradioCall('ui_search', ['the', 100, String(clusterId), 3]);
 
-                // result[0] = chunks table, result[1] = dropdown, result[2] = uid, result[3] = status
-                const chunksTable = result[0];
+                const resultsTable = result[2];
 
-                if (!chunksTable || !chunksTable.data || chunksTable.data.length < 2) {
+                if (!resultsTable || !resultsTable.data || resultsTable.data.length < 2) {
                     state.results = [];
                     state.total = 0;
                 } else {
                     // First row is headers, actual data starts at index 1
-                    const headers = chunksTable.data[0];
-                    const dataRows = chunksTable.data.slice(1);
+                    const headers = resultsTable.data[0];
+                    const dataRows = resultsTable.data.slice(1);
 
                     const uidIdx = headers.indexOf('uid') >= 0 ? headers.indexOf('uid') : 0;
+                    const docIdx = headers.indexOf('doc_id') >= 0 ? headers.indexOf('doc_id') : 3;
                     const srcIdx = headers.indexOf('source_file') >= 0 ? headers.indexOf('source_file') : 4;
                     const previewIdx = headers.indexOf('preview') >= 0 ? headers.indexOf('preview') : 6;
 
                     state.results = dataRows.map(row => ({
                         uid: row[uidIdx],
-                        doc_id: row[uidIdx],
+                        doc_id: row[docIdx] || row[uidIdx],
                         source_file: row[srcIdx] || 'Unknown',
                         text: (row[previewIdx] || '').substring(0, 500),
                         text_highlighted: (row[previewIdx] || '').substring(0, 500),
