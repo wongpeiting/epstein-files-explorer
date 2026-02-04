@@ -1,8 +1,10 @@
 # Epstein explore tool for journalists
 
-This interactive frontend tool for exploring the Epstein document corpus is built for journalists in mind. It therefore assumes that users would verify nuggets of information they found here against the official documents as they indulge in the iterative process of connecting the dots in putting together a story. Material found here is not to be taken as final - they are to be verified against the original.
+This interactive frontend tool for exploring the Epstein document corpus is built for journalists in mind. It therefore assumes that users would verify nuggets of information they found here against the official documents as they indulge in the iterative process of connecting the dots in putting together a story. 
 
-Here's the link to the tool: https://wongpeiting.github.io/epstein-files-explorer/
+Material found here is not to be taken as final - they are to be verified against the original. It is also important to note that the search results might not be complete as it relies on the stability of the APIs this tool is connected to. 
+
+With that, here's the link to the tool: https://wongpeiting.github.io/epstein-files-explorer/ Hope you find a lead.
 
 ## Data Sources
 
