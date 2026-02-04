@@ -1096,7 +1096,7 @@
                 <div class="stat-item">Docs: <span id="statDocs">-</span></div>
                 <div class="stat-item">Chunks: <span id="statChunks">-</span></div>
                 <div class="stat-item stat-clickable" id="clusterStat" title="Click to browse clusters">Clusters: <span id="statClusters">-</span></div>
-                <div class="stat-item" style="color:var(--text-muted);font-size:0.75rem" title="House Oversight Nov 2025 + DOJ Jan 2026">Jan 2026: <span id="statJan2026">1,076</span> files</div>
+                <div class="stat-item" style="color:var(--text-muted);font-size:0.75rem" title="Data: Nov 2025 House Oversight release (~330k docs) + Jan 2026 DOJ release (1,076 files)">Data: Nov 2025 + Jan 2026</div>
                 <a href="https://github.com/wongpeiting/epstein-files-explorer" target="_blank" rel="noopener noreferrer" class="about-link" title="About this project">?</a>
             </div>
         </div>
@@ -1409,10 +1409,15 @@
             if (jan2026IndexLoaded) return;
             try {
                 const res = await fetch('jan2026-index.json');
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 jan2026Index = await res.json();
                 jan2026IndexLoaded = true;
-                document.getElementById('statJan2026').textContent = jan2026Index.length.toLocaleString();
                 console.log('Jan 2026 index loaded:', jan2026Index.length, 'files');
+                // If user has an active search, re-render to show Jan 2026 results
+                if (state.query || state.selectedTags.length > 0) {
+                    console.log('Re-rendering with Jan 2026 results');
+                    renderResults();
+                }
             } catch (e) {
                 console.error('Failed to load Jan 2026 index:', e);
             }
@@ -1420,12 +1425,19 @@
 
         // Search Jan 2026 files by filename
         function searchJan2026(query) {
-            if (!jan2026IndexLoaded || !query) return [];
-            const terms = query.toLowerCase().split(/\s+/);
-            return jan2026Index.filter(file => {
+            if (!jan2026IndexLoaded) {
+                console.log('Jan 2026 index not loaded yet, attempting load...');
+                loadJan2026Index(); // Try loading again
+                return [];
+            }
+            if (!query) return [];
+            const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+            const results = jan2026Index.filter(file => {
                 const name = file.name.toLowerCase();
                 return terms.every(term => name.includes(term));
-            }).slice(0, 50); // Limit results
+            }).slice(0, 50);
+            console.log(`Jan 2026 search for "${query}": ${results.length} matches`);
+            return results;
         }
 
         // Open Jan 2026 document

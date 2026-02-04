@@ -6,17 +6,21 @@ An experiment in building a document exploration dashboard using [Claude Code](h
 
 This project was built collaboratively with Claude Code to create an interactive frontend for exploring the Epstein document corpus. The entire dashboard—HTML, CSS, JavaScript, and D3.js visualizations—was developed through conversation with Claude Code, demonstrating how AI can assist in rapid prototyping of data visualization tools.
 
-## Data Source
+## Data Sources
 
-The underlying data comes from the **Epstein Corpus Explorer** hosted on Hugging Face Spaces:
-- **API**: [cjc0013/epstein-corpus-explorer](https://huggingface.co/spaces/cjc0013/epstein-corpus-explorer)
+This dashboard searches across **two document releases**:
+
+### 1. November 2025 — House Oversight Committee Release
+- **API**: [cjc0013/epstein-corpus-explorer](https://huggingface.co/spaces/cjc0013/epstein-corpus-explorer) (HuggingFace)
 - **Documents**: ~330,000 documents including emails, court filings, flight logs, financial records, and communications spanning 2002–2019
-- **Source**: Documents released by the House Oversight Committee in November 2025
-- **Clusters**: 256 clusters containing ~490,000 document chunks (semantic groupings for exploration)
+- **Features**: Full-text search, 256 semantic clusters for exploration
+- **Note**: This is a frontend-only application that calls the Gradio API. No data is stored locally.
 
-This dashboard is a frontend-only application that calls the Gradio API endpoints from the Hugging Face Space. No data is stored locally.
-
-> **Data Freshness Note**: This dataset contains documents from the **House Oversight Committee November 2025 release**. It does **not** include the [DOJ January 2026 release](https://www.justice.gov/opa/pr/department-justice-publishes-35-million-responsive-pages-compliance-epstein-files) (3+ million pages). Updates depend on the upstream HuggingFace Space.
+### 2. January 2026 — DOJ Release
+- **Source**: [promexdotme/epstein-justice-files-text](https://github.com/promexdotme/epstein-justice-files-text) (GitHub)
+- **Documents**: 1,076 text files extracted from the DOJ release
+- **Features**: Filename search, click to view full document content
+- **Note**: This is a subset of the full DOJ release (3+ million pages). The text files are fetched directly from GitHub.
 
 ## How to Use
 
