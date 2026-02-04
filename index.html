@@ -1172,14 +1172,11 @@
 
         // Initialize
         function init() {
-            // Setup event listeners
+            // Setup event listeners and show cluster view
             setupEventListeners();
 
             // Load stats in background (optional, doesn't block)
             loadStats().catch(e => console.error('Stats load error:', e));
-
-            // Show cluster visualization immediately using pre-loaded data
-            showClusterOverview();
         }
 
         // Load clusters and show the cluster visualization (with auto-retry)
@@ -2354,6 +2351,9 @@
             // Click handlers for both header stat and sidebar toggle
             clusterStat.addEventListener('click', toggleClusterBrowser);
             if (clusterToggle) clusterToggle.addEventListener('click', toggleClusterBrowser);
+
+            // Show cluster visualization immediately (uses pre-loaded data)
+            showClusterOverview();
         }
 
         // Utility: Escape HTML
