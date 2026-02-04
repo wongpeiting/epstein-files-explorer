@@ -1005,9 +1005,7 @@
 
         <main class="content">
             <div class="results-header">
-                <div class="results-count" id="resultsCount">
-                    Select topics or search to explore the archive
-                </div>
+                <div class="results-count" id="resultsCount"></div>
                 <div class="active-filters" id="activeFilters" style="display:none">
                     <span class="filter-label">Active filters (AND):</span>
                     <div class="filter-chips" id="filterChips"></div>
@@ -2044,7 +2042,7 @@
                         Click multiple topics to combine filters with AND logic.</p>
                     </div>
                 `;
-                resultsCount.textContent = 'Select topics or search to explore the archive';
+                resultsCount.textContent = '';
                 pagination.style.display = 'none';
             });
 
