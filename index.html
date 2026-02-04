@@ -1424,15 +1424,12 @@
 
             jan2026LoadPromise = (async () => {
                 try {
-                    console.log('Loading Jan 2026 index...');
                     const res = await fetch('jan2026-index.json');
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     jan2026Index = await res.json();
                     jan2026IndexLoaded = true;
-                    console.log('Jan 2026 index loaded:', jan2026Index.length, 'files');
                     // If user has an active search, re-render to show Jan 2026 results
                     if (state.query || state.selectedTags.length > 0) {
-                        console.log('Re-rendering with Jan 2026 results for query:', state.query);
                         renderResults();
                     }
                 } catch (e) {
@@ -1447,19 +1444,15 @@
         function searchJan2026(query) {
             if (!query) return [];
             if (!jan2026IndexLoaded) {
-                console.log('Jan 2026 index not loaded yet for query:', query);
-                // Trigger load and re-render when ready
                 loadJan2026Index();
                 return [];
             }
             const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 0);
             if (terms.length === 0) return [];
-            const results = jan2026Index.filter(file => {
+            return jan2026Index.filter(file => {
                 const searchText = (file.name + ' ' + (file.preview || '')).toLowerCase();
                 return terms.every(term => searchText.includes(term));
             }).slice(0, 50);
-            console.log(`Jan 2026 search for "${query}": ${results.length} matches (index has ${jan2026Index.length} files)`);
-            return results;
         }
 
         // Open Jan 2026 document
@@ -2155,11 +2148,7 @@
 
             // Also search Jan 2026 files if we have a query
             const searchQuery = state.query || state.selectedTags.join(' ');
-            console.log('renderResults called, query:', searchQuery, 'jan2026IndexLoaded:', jan2026IndexLoaded);
-            const jan2026Results = searchQuery
-                ? searchJan2026(searchQuery)
-                : [];
-            console.log('Jan 2026 results:', jan2026Results.length);
+            const jan2026Results = searchQuery ? searchJan2026(searchQuery) : [];
 
             if (!state.results.length && !jan2026Results.length) {
                 resultsList.innerHTML = '<div class="empty-state"><h3>No results found</h3><p>Try different keywords or enable fuzzy search.</p></div>';
