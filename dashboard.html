@@ -1090,6 +1090,9 @@
             });
         }
 
+        // Simulation references for cleanup (prevent memory leaks)
+        let activeSimulation = null;
+
         // State
         let state = {
             query: '',
@@ -2138,146 +2141,94 @@
                 pagination.style.display = 'none';
             }
 
-            // Force layout for landing page (smaller)
-            function renderLandingForceLayout(container, clusters) {
-                if (!container || !clusters || !clusters.length) {
-                    console.log('renderLandingForceLayout: missing container or clusters');
+            // Force layout for cluster overview
+            function renderForceLayout(container, width, height) {
+                if (!container || !state.clusters || !state.clusters.length) {
+                    console.warn('renderForceLayout: missing container or clusters');
                     return;
                 }
 
-                // Muted, serious color palette for investigative/archival content
+                // Stop any existing simulation to prevent memory leaks
+                if (activeSimulation) {
+                    activeSimulation.stop();
+                    activeSimulation = null;
+                }
+
+                // Muted, serious color palette
                 const colors = ['#4a5568', '#5a6b7c', '#6b7d8c', '#7c8b9c', '#566573', '#64748b', '#475569', '#5b6f7d'];
-                const width = Math.max(container.clientWidth, 500) || 600;
-                const height = 350;
 
-                // Clear and create SVG
-                container.innerHTML = '';
-                const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                svgEl.setAttribute('width', width);
-                svgEl.setAttribute('height', height);
-                svgEl.id = 'landingForceSvg';
-                container.appendChild(svgEl);
+                // Ensure valid dimensions
+                width = Math.max(width || container.clientWidth || 800, 400);
+                height = Math.max(height || 600, 300);
 
-                const svg = d3.select('#landingForceSvg');
+                // Clear container using D3
+                d3.select(container).selectAll('*').remove();
 
+                // Create SVG with viewBox for responsiveness
+                const svg = d3.select(container)
+                    .append('svg')
+                    .attr('id', 'forceSvg')
+                    .attr('width', width)
+                    .attr('height', height)
+                    .attr('viewBox', `0 0 ${width} ${height}`)
+                    .style('display', 'block');
+
+                const clusters = state.clusters;
                 const maxChunks = d3.max(clusters, d => d.n_chunks) || 1;
+
+                // Scale radius based on node count
+                const maxRadius = Math.min(50, Math.max(20, 300 / Math.sqrt(clusters.length)));
                 const radiusScale = d3.scaleSqrt()
                     .domain([0, maxChunks])
-                    .range([6, 35]);
+                    .range([8, maxRadius]);
 
-                const nodes = clusters.map((c, i) => ({
-                    ...c,
-                    radius: radiusScale(c.n_chunks),
-                    color: colors[i % colors.length]
-                }));
+                // Initialize nodes with spiral positions (prevents "big bang" effect)
+                const nodes = clusters.map((c, i) => {
+                    const angle = i * 2.4; // Golden angle for even distribution
+                    const r = Math.sqrt(i + 1) * 15;
+                    return {
+                        ...c,
+                        radius: radiusScale(c.n_chunks),
+                        color: colors[i % colors.length],
+                        x: width / 2 + Math.cos(angle) * Math.min(r, width / 3),
+                        y: height / 2 + Math.sin(angle) * Math.min(r, height / 3)
+                    };
+                });
 
-                const simulation = d3.forceSimulation(nodes)
-                    .force('charge', d3.forceManyBody().strength(-2))
-                    .force('center', d3.forceCenter(width / 2, height / 2))
-                    .force('collision', d3.forceCollide().radius(d => d.radius + 2))
-                    .force('x', d3.forceX(width / 2).strength(0.05))
-                    .force('y', d3.forceY(height / 2).strength(0.05))
-                    .on('tick', ticked);
+                // Boundary force to keep nodes inside
+                function boundaryForce() {
+                    const padding = 5;
+                    return function(alpha) {
+                        const strength = alpha * 0.3;
+                        for (const node of nodes) {
+                            const minX = node.radius + padding;
+                            const maxX = width - node.radius - padding;
+                            const minY = node.radius + padding;
+                            const maxY = height - node.radius - padding;
 
-                const node = svg.selectAll('.node')
-                    .data(nodes)
-                    .enter()
-                    .append('g')
-                    .attr('class', 'node')
-                    .style('cursor', 'pointer')
-                    .call(d3.drag()
-                        .on('start', dragstarted)
-                        .on('drag', dragged)
-                        .on('end', dragended));
-
-                node.append('circle')
-                    .attr('r', d => d.radius)
-                    .attr('fill', d => d.color)
-                    .attr('opacity', 0.8)
-                    .attr('stroke', '#fff')
-                    .attr('stroke-width', 1)
-                    .on('mouseover', function(event, d) {
-                        d3.select(this).attr('opacity', 1).attr('stroke-width', 2);
-                        showClusterTooltip(d.cluster_id, event.clientX, event.clientY);
-                    })
-                    .on('mousemove', function(event) {
-                        clusterTooltip.style.left = Math.min(event.clientX + 15, window.innerWidth - 370) + 'px';
-                        clusterTooltip.style.top = Math.min(event.clientY + 15, window.innerHeight - 200) + 'px';
-                    })
-                    .on('mouseout', function() {
-                        d3.select(this).attr('opacity', 0.8).attr('stroke-width', 1);
-                        hideClusterTooltip();
-                    })
-                    .on('click', (event, d) => {
-                        loadClusterSamples(d.cluster_id, d.run_label);
-                    });
-
-                node.filter(d => d.radius > 12)
-                    .append('text')
-                    .attr('text-anchor', 'middle')
-                    .attr('dy', '0.35em')
-                    .attr('font-size', d => Math.max(7, d.radius / 3.5) + 'px')
-                    .attr('fill', 'white')
-                    .attr('pointer-events', 'none')
-                    .text(d => d.cluster_id);
-
-                function ticked() {
-                    // Clamp positions to stay within bounds
-                    node.attr('transform', d => {
-                        d.x = Math.max(d.radius, Math.min(width - d.radius, d.x));
-                        d.y = Math.max(d.radius, Math.min(height - d.radius, d.y));
-                        return `translate(${d.x},${d.y})`;
-                    });
+                            if (node.x < minX) node.vx += (minX - node.x) * strength;
+                            if (node.x > maxX) node.vx += (maxX - node.x) * strength;
+                            if (node.y < minY) node.vy += (minY - node.y) * strength;
+                            if (node.y > maxY) node.vy += (maxY - node.y) * strength;
+                        }
+                    };
                 }
 
-                function dragstarted(event, d) {
-                    if (!event.active) simulation.alphaTarget(0.3).restart();
-                    d.fx = d.x;
-                    d.fy = d.y;
-                }
-
-                function dragged(event, d) {
-                    d.fx = Math.max(d.radius, Math.min(width - d.radius, event.x));
-                    d.fy = Math.max(d.radius, Math.min(height - d.radius, event.y));
-                }
-
-                function dragended(event, d) {
-                    if (!event.active) simulation.alphaTarget(0);
-                    d.fx = null;
-                    d.fy = null;
-                }
-            }
-
-            // Force layout for cluster overview page (larger)
-            function renderForceLayout(container, width, height) {
-                if (!container || !state.clusters || !state.clusters.length) return;
-
-                // Muted, serious color palette for investigative/archival content
-                const colors = ['#4a5568', '#5a6b7c', '#6b7d8c', '#7c8b9c', '#566573', '#64748b', '#475569', '#5b6f7d'];
-                width = width || container.clientWidth || 800;
-                height = height || 600;
-
-                container.innerHTML = `<svg id="forceSvg" width="${width}" height="${height}"></svg>`;
-
-                const svg = d3.select('#forceSvg');
-                const clusters = state.clusters;
-
-                const radiusScale = d3.scaleSqrt()
-                    .domain([0, d3.max(clusters, d => d.n_chunks)])
-                    .range([8, 50]);
-
-                const nodes = clusters.map((c, i) => ({
-                    ...c,
-                    radius: radiusScale(c.n_chunks),
-                    color: colors[i % colors.length]
-                }));
-
-                const simulation = d3.forceSimulation(nodes)
-                    .force('charge', d3.forceManyBody().strength(-3))
-                    .force('center', d3.forceCenter(width / 2, height / 2))
-                    .force('collision', d3.forceCollide().radius(d => d.radius + 2))
-                    .force('x', d3.forceX(width / 2).strength(0.04))
-                    .force('y', d3.forceY(height / 2).strength(0.04))
+                // Optimized simulation for 256 nodes
+                activeSimulation = d3.forceSimulation(nodes)
+                    .force('charge', d3.forceManyBody()
+                        .strength(d => -Math.max(20, d.radius * 1.5))
+                        .distanceMax(150)
+                    )
+                    .force('collision', d3.forceCollide()
+                        .radius(d => d.radius + 3)
+                        .iterations(2)
+                    )
+                    .force('x', d3.forceX(width / 2).strength(0.06))
+                    .force('y', d3.forceY(height / 2).strength(0.06))
+                    .force('boundary', boundaryForce())
+                    .velocityDecay(0.5)
+                    .alphaDecay(0.025)
                     .on('tick', ticked);
 
                 const node = svg.selectAll('.node')
@@ -2322,17 +2273,23 @@
                     .attr('pointer-events', 'none')
                     .text(d => d.cluster_id);
 
+                // Throttled tick function for performance
+                let lastTickTime = 0;
                 function ticked() {
-                    // Clamp positions to stay within bounds
+                    const now = performance.now();
+                    if (now - lastTickTime < 16) return; // Cap at ~60fps
+                    lastTickTime = now;
+
                     node.attr('transform', d => {
-                        d.x = Math.max(d.radius, Math.min(width - d.radius, d.x));
-                        d.y = Math.max(d.radius, Math.min(height - d.radius, d.y));
+                        // Hard boundary clamp as safety net
+                        d.x = Math.max(d.radius + 2, Math.min(width - d.radius - 2, d.x));
+                        d.y = Math.max(d.radius + 2, Math.min(height - d.radius - 2, d.y));
                         return `translate(${d.x},${d.y})`;
                     });
                 }
 
                 function dragstarted(event, d) {
-                    if (!event.active) simulation.alphaTarget(0.3).restart();
+                    if (!event.active) activeSimulation.alphaTarget(0.3).restart();
                     d.fx = d.x;
                     d.fy = d.y;
                 }
@@ -2343,7 +2300,7 @@
                 }
 
                 function dragended(event, d) {
-                    if (!event.active) simulation.alphaTarget(0);
+                    if (!event.active) activeSimulation.alphaTarget(0);
                     d.fx = null;
                     d.fy = null;
                 }
