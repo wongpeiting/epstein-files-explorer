@@ -1018,7 +1018,6 @@
                 <div class="empty-state">
                     <div style="max-width:700px;margin:0 auto;text-align:left">
                         <div>
-                            <h3 style="margin-bottom:0.75rem;text-align:left">The Paper Trail</h3>
                             <p style="margin-bottom:0.75rem;font-size:0.95rem;line-height:1.6">Jeffrey Epstein cultivated ties to some of the world's most powerful people—billionaires, politicians, scientists, and royalty. When he died in 2019, he left behind a trove of documents that reveal how those relationships worked.</p>
                             <p style="margin-bottom:1rem;font-size:0.95rem;line-height:1.6">This archive contains <strong>331,655 documents</strong>: emails, court filings, flight logs, financial records, and communications spanning 2002–2019. Search by name, place, or topic. Combine filters to narrow your results.</p>
                             <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:1.5rem">Select a topic from the sidebar, or type a name to begin. Click multiple topics to narrow your search.</p>
@@ -1514,16 +1513,8 @@
         // Note: Gradio API does single search, so we combine terms with spaces and filter client-side
         async function searchWithFilters(append = false) {
             if (state.selectedTags.length === 0) {
-                // No filters, show empty state
-                resultsList.innerHTML = `
-                    <div class="empty-state">
-                        <h3>Explore the Epstein Files</h3>
-                        <p>Search for names, places, or keywords above.<br>
-                        Click multiple tags to combine filters with AND logic.</p>
-                    </div>
-                `;
-                resultsCount.textContent = 'Select topics to explore documents';
-                pagination.style.display = 'none';
+                // No filters, show landing content
+                showLandingContent();
                 return;
             }
 
@@ -1606,15 +1597,7 @@
             state.query = query;
 
             if (!query && state.clusterId === null && state.selectedTags.length === 0) {
-                resultsList.innerHTML = `
-                    <div class="empty-state">
-                        <h3>Explore the Epstein Files</h3>
-                        <p>Search for names, places, or keywords above.<br>
-                        Enable "Fuzzy" to find results even with typos.</p>
-                    </div>
-                `;
-                resultsCount.textContent = 'Search or select a cluster to explore documents';
-                pagination.style.display = 'none';
+                showLandingContent();
                 return;
             }
 
@@ -2011,15 +1994,7 @@
                 searchInput.value = '';
                 clearActiveTags();
                 updateActiveFiltersUI();
-                resultsList.innerHTML = `
-                    <div class="empty-state">
-                        <h3>Explore the Epstein Files</h3>
-                        <p>Search for names, places, or keywords above.<br>
-                        Click multiple topics to combine filters with AND logic.</p>
-                    </div>
-                `;
-                resultsCount.textContent = '';
-                pagination.style.display = 'none';
+                showLandingContent();
             });
 
             // Tag click handlers - multi-select for combined AND search
@@ -2132,6 +2107,33 @@
                 // Also show cluster overview in main content area
                 if (state.clusters && state.clusters.length > 0) {
                     showClusterOverview();
+                }
+            }
+
+            // Show landing content (default state)
+            function showLandingContent() {
+                resultsCount.textContent = '';
+                resultsList.innerHTML = `
+                    <div class="empty-state">
+                        <div style="max-width:700px;margin:0 auto;text-align:left">
+                            <div>
+                                <p style="margin-bottom:0.75rem;font-size:0.95rem;line-height:1.6">Jeffrey Epstein cultivated ties to some of the world's most powerful people—billionaires, politicians, scientists, and royalty. When he died in 2019, he left behind a trove of documents that reveal how those relationships worked.</p>
+                                <p style="margin-bottom:1rem;font-size:0.95rem;line-height:1.6">This archive contains <strong>331,655 documents</strong>: emails, court filings, flight logs, financial records, and communications spanning 2002–2019. Search by name, place, or topic. Combine filters to narrow your results.</p>
+                                <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:1.5rem">Select a topic from the sidebar, or type a name to begin. Click multiple topics to narrow your search.</p>
+                            </div>
+                            <div style="margin-top:1.5rem">
+                                <h4 style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:1rem;text-transform:uppercase;letter-spacing:0.5px">Browse by Cluster</h4>
+                                <div id="landingClustersReset" style="max-width:600px"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                pagination.style.display = 'none';
+
+                // Render force layout if clusters are loaded
+                if (state.clusters && state.clusters.length > 0) {
+                    const container = document.getElementById('landingClustersReset');
+                    renderLandingForceLayout(container, state.clusters);
                 }
             }
 
