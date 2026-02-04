@@ -1157,8 +1157,13 @@
 
         // Initialize
         async function init() {
-            await loadStats();
+            // Load stats in background (don't block)
+            loadStats().catch(e => console.error('Stats load error:', e));
+
+            // Load clusters first - this is the main content
             await loadLandingClusters();
+
+            // Setup event listeners
             setupEventListeners();
         }
 
@@ -1694,12 +1699,13 @@
 
         // Load cluster samples using search with cluster filter
         async function loadClusterSamples(clusterId, runLabel = null) {
-            resultsList.innerHTML = '<div class="loading"><div class="spinner"></div>Loading cluster...</div>';
+            resultsList.innerHTML = '<div class="loading"><div class="spinner"></div>Loading cluster ' + clusterId + '...</div>';
+            resultsCount.textContent = `Loading Cluster ${clusterId}...`;
 
             try {
                 // Use search with cluster filter - more reliable than ui_load_cluster_chunks
                 // ui_search: [query, limit, cluster_filter, context_window]
-                const result = await gradioCall('ui_search', ['the', 100, String(clusterId), 3]);
+                const result = await gradioCall('ui_search', ['the', 100, String(clusterId), 3], 90000);
 
                 const resultsTable = result[2];
 
@@ -1729,10 +1735,17 @@
                 state.clusterId = clusterId;
                 state.hasMore = false;
 
+                resultsCount.innerHTML = `<span>Cluster ${clusterId}</span> — ${state.total} documents`;
                 renderResults();
             } catch (e) {
                 console.error('Failed to load cluster:', e);
-                resultsList.innerHTML = '<div class="empty-state">Failed to load cluster.</div>';
+                resultsCount.textContent = '';
+                resultsList.innerHTML = `
+                    <div class="empty-state" style="text-align:center">
+                        <p style="margin-bottom:1rem">Failed to load cluster ${clusterId}. The server may be busy.</p>
+                        <button onclick="loadClusterSamples(${clusterId})" style="padding:8px 16px;background:var(--accent);color:white;border:none;border-radius:4px;cursor:pointer;margin-right:8px">Try Again</button>
+                        <button onclick="showClusterOverview()" style="padding:8px 16px;background:var(--bg-tertiary);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;cursor:pointer">Back to Clusters</button>
+                    </div>`;
             }
         }
 
