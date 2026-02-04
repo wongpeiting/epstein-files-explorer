@@ -2586,6 +2586,8 @@
 
             // Show landing content (default state) - shows cluster overview
             showLandingContent = function() {
+                // Hide search note when returning to landing
+                document.getElementById('searchNote').style.display = 'none';
                 if (state.clusters && state.clusters.length > 0) {
                     showClusterOverview();
                 } else {
