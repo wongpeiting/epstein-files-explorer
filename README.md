@@ -16,7 +16,7 @@ The underlying data comes from the **Epstein Corpus Explorer** hosted on Hugging
 
 This dashboard is a frontend-only application that calls the Gradio API endpoints from the Hugging Face Space. No data is stored locally.
 
-> **Data Freshness Note**: The current data is from **January 31, 2026** and does not include the February 2, 2026 document release. Updates depend on the upstream HuggingFace Space.
+> **Data Freshness Note**: This dataset contains documents from the **House Oversight Committee November 2025 release**. It does **not** include the [DOJ January 2026 release](https://www.justice.gov/opa/pr/department-justice-publishes-35-million-responsive-pages-compliance-epstein-files) (3+ million pages). Updates depend on the upstream HuggingFace Space.
 
 ## How to Use
 
