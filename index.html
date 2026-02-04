@@ -2353,6 +2353,9 @@
             suggestions.classList.remove('active');
         }
 
+        // Forward declarations for functions defined inside setupEventListeners
+        let showLandingContent, showClusterOverview, renderForceLayout;
+
         // Event listeners
         function setupEventListeners() {
             // Event delegation for result cards (prevents listener accumulation bug)
@@ -2575,16 +2578,16 @@
             }
 
             // Show landing content (default state) - shows cluster overview
-            function showLandingContent() {
+            showLandingContent = function() {
                 if (state.clusters && state.clusters.length > 0) {
                     showClusterOverview();
                 } else {
                     loadClustersAndShow();
                 }
-            }
+            };
 
             // Show cluster overview in main content
-            function showClusterOverview() {
+            showClusterOverview = function() {
                 resultsCount.textContent = '';
 
                 resultsList.innerHTML = `
@@ -2601,10 +2604,10 @@
                 const contentHeight = Math.max(500, window.innerHeight - 200);
                 renderForceLayout(container, contentWidth, contentHeight);
                 pagination.style.display = 'none';
-            }
+            };
 
             // Force layout for cluster overview
-            function renderForceLayout(container, width, height) {
+            renderForceLayout = function(container, width, height) {
                 if (!container || !state.clusters || !state.clusters.length) {
                     console.warn('renderForceLayout: missing container or clusters');
                     return;
@@ -2779,7 +2782,7 @@
                     d.fx = null;
                     d.fy = null;
                 }
-            }
+            };
 
             function renderClusterBrowserList(clusters) {
                 clusterList.innerHTML = clusters.map(c => `
