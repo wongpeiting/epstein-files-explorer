@@ -1157,59 +1157,48 @@
 
         // Initialize
         async function init() {
-            // Load stats in background (don't block)
+            // Setup event listeners first
+            setupEventListeners();
+
+            // Load stats in background
             loadStats().catch(e => console.error('Stats load error:', e));
 
-            // Load clusters first - this is the main content
-            await loadLandingClusters();
-
-            // Setup event listeners
-            setupEventListeners();
+            // Load and show clusters
+            loadClustersAndShow();
         }
 
-        // Load clusters and show full-width cluster view
-        async function loadLandingClusters(retryCount = 0) {
+        // Load clusters and show the cluster visualization
+        async function loadClustersAndShow() {
             resultsList.innerHTML = `
                 <div class="loading">
                     <div class="spinner"></div>
-                    <div style="margin-top:1rem;color:var(--text-secondary);font-size:0.85rem">
-                        Loading clusters...${retryCount > 0 ? ` (attempt ${retryCount + 1})` : ''}
-                        <br><span style="font-size:0.75rem;color:var(--text-muted)">The server may take a moment to wake up</span>
-                    </div>
+                    <div style="margin-top:1rem;color:var(--text-secondary)">Loading clusters...</div>
                 </div>`;
 
             try {
-                const result = await gradioCall('ui_load_clusters_all', [500], 90000);
+                const result = await gradioCall('ui_load_clusters_all', [500], 120000);
                 const clusterTable = result[0];
 
-                if (!clusterTable || !clusterTable.data || clusterTable.data.length < 2) {
-                    resultsList.innerHTML = '<div class="empty-state">No clusters found</div>';
-                    return;
-                }
+                if (clusterTable && clusterTable.data && clusterTable.data.length > 1) {
+                    const clusters = clusterTable.data.slice(1).map(row => ({
+                        run_label: row[0],
+                        cluster_id: row[1],
+                        n_chunks: parseInt(row[2]) || 0
+                    }));
 
-                const clusters = clusterTable.data.slice(1).map(row => ({
-                    run_label: row[0],
-                    cluster_id: row[1],
-                    n_chunks: parseInt(row[2]) || 0
-                }));
-
-                document.getElementById('statClusters').textContent = clusters.length.toLocaleString();
-                state.clusters = clusters;
-
-                // Show full-width cluster view as default
-                showClusterOverview();
-            } catch (e) {
-                console.error('Failed to load clusters:', e);
-                if (retryCount < 2) {
-                    // Auto-retry up to 2 times
-                    setTimeout(() => loadLandingClusters(retryCount + 1), 2000);
+                    state.clusters = clusters;
+                    document.getElementById('statClusters').textContent = clusters.length.toLocaleString();
+                    showClusterOverview();
                 } else {
-                    resultsList.innerHTML = `
-                        <div class="empty-state" style="text-align:center">
-                            <p style="margin-bottom:1rem">Failed to load clusters. The server may be temporarily unavailable.</p>
-                            <button onclick="loadLandingClusters(0)" style="padding:8px 16px;background:var(--accent);color:white;border:none;border-radius:4px;cursor:pointer">Try Again</button>
-                        </div>`;
+                    resultsList.innerHTML = '<div class="empty-state">No clusters found</div>';
                 }
+            } catch (e) {
+                console.error('Cluster load error:', e);
+                resultsList.innerHTML = `
+                    <div class="empty-state" style="text-align:center">
+                        <p>Could not load clusters.</p>
+                        <button onclick="loadClustersAndShow()" style="margin-top:1rem;padding:8px 16px;background:var(--accent);color:white;border:none;border-radius:4px;cursor:pointer">Try Again</button>
+                    </div>`;
             }
         }
 
@@ -2126,13 +2115,12 @@
                 }
             }
 
-            // Show landing content (default state) - now shows cluster overview
+            // Show landing content (default state) - shows cluster overview
             function showLandingContent() {
                 if (state.clusters && state.clusters.length > 0) {
                     showClusterOverview();
                 } else {
-                    resultsCount.textContent = '';
-                    resultsList.innerHTML = '<div class="loading"><div class="spinner"></div>Loading clusters...</div>';
+                    loadClustersAndShow();
                 }
             }
 
