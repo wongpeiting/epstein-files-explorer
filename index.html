@@ -146,10 +146,32 @@
             color: inherit;
         }
 
+        .about-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1.25rem;
+            height: 1.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-decoration: none;
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            margin-left: 0.5rem;
+            transition: all 0.15s;
+        }
+
+        .about-link:hover {
+            color: var(--accent);
+            border-color: var(--accent);
+            background: rgba(59, 130, 246, 0.1);
+        }
+
         /* Main Layout */
         .main-container {
             display: grid;
-            grid-template-columns: 280px 1fr;
+            grid-template-columns: 320px 1fr;
             max-width: 1800px;
             margin: 0 auto;
             min-height: calc(100vh - 70px);
@@ -798,11 +820,266 @@
             align-items: center;
             justify-content: center;
         }
+
+        /* Hamburger Menu Button */
+        .hamburger-btn {
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            width: 40px;
+            height: 40px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            cursor: pointer;
+            padding: 8px;
+            gap: 5px;
+        }
+
+        .hamburger-btn span {
+            display: block;
+            width: 20px;
+            height: 2px;
+            background: var(--text-primary);
+            border-radius: 1px;
+            transition: all 0.3s ease;
+        }
+
+        .hamburger-btn.active span:nth-child(1) {
+            transform: rotate(45deg) translate(5px, 5px);
+        }
+
+        .hamburger-btn.active span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .hamburger-btn.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(5px, -5px);
+        }
+
+        /* Sidebar Overlay (for mobile) */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 199;
+        }
+
+        .sidebar-overlay.active {
+            display: block;
+        }
+
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            /* Header adjustments */
+            .header {
+                padding: 0.75rem 1rem;
+            }
+
+            .header-content {
+                flex-wrap: wrap;
+                gap: 0.75rem;
+            }
+
+            .hamburger-btn {
+                display: flex;
+                order: -1;
+            }
+
+            .logo {
+                font-size: 1.2rem;
+                flex: 1;
+            }
+
+            .search-container {
+                order: 3;
+                flex-basis: 100%;
+                max-width: 100%;
+            }
+
+            .search-input {
+                padding: 0.625rem 0.75rem;
+                padding-right: 100px;
+                font-size: 0.9rem;
+            }
+
+            .stats-bar {
+                order: 2;
+                gap: 0.75rem;
+                font-size: 0.75rem;
+            }
+
+            .stat-item:not(.stat-clickable):not(:first-child):not(:nth-child(2)) {
+                display: none;
+            }
+
+            /* Main container - single column */
+            .main-container {
+                grid-template-columns: 1fr;
+            }
+
+            /* Sidebar as overlay */
+            .sidebar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 280px;
+                max-width: 85vw;
+                height: 100vh;
+                z-index: 200;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                padding-top: 1rem;
+            }
+
+            .sidebar.mobile-open {
+                transform: translateX(0);
+            }
+
+            /* Content area adjustments */
+            .content {
+                padding: 1rem;
+                height: auto;
+                min-height: calc(100vh - 120px);
+            }
+
+            /* Visualization panel adjustments */
+            .viz-panel {
+                margin-bottom: 1rem;
+            }
+
+            .viz-content {
+                height: 250px;
+            }
+
+            .viz-header {
+                flex-direction: column;
+                gap: 0.5rem;
+                align-items: flex-start;
+            }
+
+            .viz-tabs {
+                width: 100%;
+                overflow-x: auto;
+            }
+
+            /* Result cards adjustments */
+            .result-card {
+                padding: 0.75rem;
+            }
+
+            .result-header {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+
+            /* Modal adjustments */
+            .modal-overlay {
+                padding: 0.5rem;
+            }
+
+            .modal {
+                max-height: 95vh;
+                border-radius: 8px;
+            }
+
+            .modal-header {
+                padding: 0.75rem 1rem;
+            }
+
+            .modal-body {
+                padding: 1rem;
+            }
+
+            /* Active filters adjustments */
+            .active-filters {
+                padding: 0.5rem 0.75rem;
+            }
+
+            .filter-chips {
+                gap: 0.25rem;
+            }
+
+            .filter-chip {
+                font-size: 0.7rem;
+                padding: 0.25rem 0.5rem;
+            }
+
+            /* Cluster tooltip adjustments */
+            .cluster-tooltip {
+                max-width: 280px;
+                left: 10px !important;
+                right: 10px !important;
+            }
+        }
+
+        /* Extra small screens */
+        @media (max-width: 480px) {
+            .header {
+                padding: 0.5rem;
+            }
+
+            .logo {
+                font-size: 1rem;
+            }
+
+            .stats-bar {
+                gap: 0.5rem;
+                font-size: 0.7rem;
+            }
+
+            .stat-item:not(:first-child) {
+                display: none;
+            }
+
+            .stat-item:first-child {
+                display: block;
+            }
+
+            .search-input {
+                padding: 0.5rem;
+                padding-right: 80px;
+                font-size: 0.85rem;
+            }
+
+            .fuzzy-toggle {
+                padding: 0.125rem 0.375rem;
+                font-size: 0.65rem;
+            }
+
+            .viz-content {
+                height: 200px;
+            }
+
+            .sidebar {
+                width: 260px;
+            }
+
+            .tag {
+                padding: 0.2rem 0.4rem;
+                font-size: 0.7rem;
+            }
+
+            .sidebar-title {
+                font-size: 0.7rem;
+            }
+
+            .help-text {
+                font-size: 0.7rem;
+            }
+        }
     </style>
 </head>
 <body>
     <header class="header">
         <div class="header-content">
+            <button class="hamburger-btn" id="hamburgerBtn" aria-label="Toggle navigation menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
             <div class="logo">🗃 Explore the Epstein Files</div>
             <div class="search-container">
                 <input type="text" class="search-input" id="searchInput"
@@ -820,6 +1097,7 @@
                 <div class="stat-item">Chunks: <span id="statChunks">-</span></div>
                 <div class="stat-item stat-clickable" id="clusterStat" title="Click to browse clusters">Clusters: <span id="statClusters">-</span></div>
                 <div class="stat-item" style="color:var(--text-muted);font-size:0.75rem" title="Data source last updated">Data: Jan 31, 2026</div>
+                <a href="https://github.com/wongpeiting/epstein-files-explorer" target="_blank" rel="noopener noreferrer" class="about-link" title="About this project">?</a>
             </div>
         </div>
     </header>
@@ -830,8 +1108,10 @@
         <div class="hint">Click to explore this cluster</div>
     </div>
 
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
     <div class="main-container">
-        <aside class="sidebar">
+        <aside class="sidebar" id="sidebar">
             <div class="sidebar-section">
                 <div class="sidebar-title">Singapore Links</div>
                 <div class="suggestion-tags">
@@ -857,11 +1137,6 @@
                     <span class="tag" data-search="Malaysia">Malaysia</span>
                     <span class="tag" data-search="Vietnam">Vietnam</span>
                     <span class="tag" data-search="Taiwan">Taiwan</span>
-                </div>
-            </div>
-            <div class="sidebar-section">
-                <div class="sidebar-title">Asian Cities</div>
-                <div class="suggestion-tags">
                     <span class="tag" data-search="Tokyo">Tokyo</span>
                     <span class="tag" data-search="Beijing">Beijing</span>
                     <span class="tag" data-search="Shanghai">Shanghai</span>
@@ -2053,7 +2328,47 @@
                 if (e.key === 'Escape') {
                     modalOverlay.classList.remove('active');
                     suggestions.classList.remove('active');
+                    // Close mobile sidebar on escape
+                    closeMobileSidebar();
                 }
+            });
+
+            // Mobile sidebar toggle functionality
+            const hamburgerBtn = document.getElementById('hamburgerBtn');
+            const sidebar = document.getElementById('sidebar');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+            function openMobileSidebar() {
+                hamburgerBtn.classList.add('active');
+                sidebar.classList.add('mobile-open');
+                sidebarOverlay.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+
+            function closeMobileSidebar() {
+                hamburgerBtn.classList.remove('active');
+                sidebar.classList.remove('mobile-open');
+                sidebarOverlay.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+
+            hamburgerBtn.addEventListener('click', () => {
+                if (sidebar.classList.contains('mobile-open')) {
+                    closeMobileSidebar();
+                } else {
+                    openMobileSidebar();
+                }
+            });
+
+            sidebarOverlay.addEventListener('click', closeMobileSidebar);
+
+            // Close sidebar when a tag is clicked on mobile
+            document.querySelectorAll('.sidebar .tag').forEach(tag => {
+                tag.addEventListener('click', () => {
+                    if (window.innerWidth <= 768) {
+                        closeMobileSidebar();
+                    }
+                });
             });
 
             // Resize handler for viz
@@ -2154,7 +2469,7 @@
 
                 resultsList.innerHTML = `
                     <div style="padding:0.5rem">
-                        <p style="color:var(--text-secondary);margin-bottom:0.5rem;font-size:0.8rem">Click a cluster to explore its documents. Drag to rearrange. Larger nodes = more documents.</p>
+                        <p style="color:var(--text-secondary);margin-bottom:0.5rem;font-size:0.8rem">Click a cluster to explore its documents. Drag to rearrange. Numbers show cluster ID and document count.</p>
                         <div id="clusterForceContainer" style="width:100%"></div>
                     </div>
                 `;
@@ -2289,14 +2604,27 @@
                         loadClusterSamples(d.cluster_id, d.run_label);
                     });
 
-                node.filter(d => d.radius > 15)
+                // Cluster ID label (top line)
+                node.filter(d => d.radius > 20)
                     .append('text')
+                    .attr('class', 'cluster-label')
                     .attr('text-anchor', 'middle')
-                    .attr('dy', '0.35em')
-                    .attr('font-size', d => Math.max(8, d.radius / 3) + 'px')
+                    .attr('dy', d => d.radius > 35 ? '-0.3em' : '0.35em')
+                    .attr('font-size', d => Math.max(9, d.radius / 3) + 'px')
                     .attr('fill', 'white')
                     .attr('pointer-events', 'none')
                     .text(d => d.cluster_id);
+
+                // Document count label (bottom line, only for larger nodes)
+                node.filter(d => d.radius > 35)
+                    .append('text')
+                    .attr('class', 'cluster-count-label')
+                    .attr('text-anchor', 'middle')
+                    .attr('dy', '0.9em')
+                    .attr('font-size', d => Math.max(7, d.radius / 4) + 'px')
+                    .attr('fill', 'rgba(255,255,255,0.8)')
+                    .attr('pointer-events', 'none')
+                    .text(d => d.n_chunks.toLocaleString());
 
                 // Throttled tick function for performance
                 let lastTickTime = 0;

@@ -12,8 +12,11 @@ The underlying data comes from the **Epstein Corpus Explorer** hosted on Hugging
 - **API**: [cjc0013/epstein-corpus-explorer](https://huggingface.co/spaces/cjc0013/epstein-corpus-explorer)
 - **Documents**: ~330,000 documents including emails, court filings, flight logs, financial records, and communications spanning 2002–2019
 - **Source**: Documents released by the House Oversight Committee in November 2025
+- **Clusters**: 256 clusters containing ~490,000 document chunks (semantic groupings for exploration)
 
 This dashboard is a frontend-only application that calls the Gradio API endpoints from the Hugging Face Space. No data is stored locally.
+
+> **Data Freshness Note**: The current data is from **January 31, 2026** and does not include the February 2, 2026 document release. Updates depend on the upstream HuggingFace Space.
 
 ## How to Use
 
