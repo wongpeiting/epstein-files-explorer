@@ -2160,44 +2160,300 @@
             }
 
             // Show cluster overview in main content
-            function showClusterOverview() {
-                const colors = ['#3498db', '#9b59b6', '#e74c3c', '#f39c12', '#1abc9c', '#34495e', '#e91e63', '#00bcd4'];
+            let currentClusterView = 'chord';
 
+            function showClusterOverview() {
                 resultsCount.innerHTML = `<span>${state.clusters.length}</span> clusters in corpus`;
+                renderClusterView(currentClusterView);
+                pagination.style.display = 'none';
+            }
+
+            function renderClusterView(viewType) {
+                currentClusterView = viewType;
+                const colors = ['#3498db', '#9b59b6', '#e74c3c', '#f39c12', '#1abc9c', '#34495e', '#e91e63', '#00bcd4'];
 
                 resultsList.innerHTML = `
                     <div style="padding:1rem">
-                        <h3 style="margin-bottom:1rem;color:var(--text-primary)">Browse Clusters</h3>
-                        <p style="margin-bottom:1.5rem;color:var(--text-secondary)">Click a cluster to explore its documents. Larger clusters contain more documents.</p>
-                        <div style="display:flex;flex-wrap:wrap;gap:8px">
-                            ${state.clusters.map((c, i) => {
-                                const size = Math.max(40, Math.min(80, 30 + Math.sqrt(c.n_chunks) / 2));
-                                const color = colors[i % colors.length];
-                                return `
-                                    <div class="cluster-box" data-cluster="${c.cluster_id}" data-run="${c.run_label}"
-                                         style="width:${size}px;height:${size}px;background:${color};border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:white;font-weight:500;transition:all 0.15s;box-shadow:0 2px 4px rgba(0,0,0,0.1)"
-                                         title="Cluster ${c.cluster_id}: ${c.n_chunks.toLocaleString()} documents"
-                                         onmouseover="this.style.transform='scale(1.1)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.2)'"
-                                         onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
-                                        <span style="font-size:0.75rem">${c.cluster_id}</span>
-                                        <span style="font-size:0.6rem;opacity:0.8">${c.n_chunks > 1000 ? Math.round(c.n_chunks/1000) + 'k' : c.n_chunks}</span>
-                                    </div>
-                                `;
-                            }).join('')}
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+                            <h3 style="color:var(--text-primary)">Browse Clusters</h3>
+                            <div style="display:flex;gap:4px">
+                                <button class="view-btn ${viewType === 'chord' ? 'active' : ''}" data-view="chord" style="padding:6px 12px;border:1px solid var(--border);background:${viewType === 'chord' ? 'var(--accent)' : 'var(--bg-primary)'};color:${viewType === 'chord' ? 'white' : 'var(--text-secondary)'};border-radius:4px;cursor:pointer;font-size:0.75rem">Chord</button>
+                                <button class="view-btn ${viewType === 'grid' ? 'active' : ''}" data-view="grid" style="padding:6px 12px;border:1px solid var(--border);background:${viewType === 'grid' ? 'var(--accent)' : 'var(--bg-primary)'};color:${viewType === 'grid' ? 'white' : 'var(--text-secondary)'};border-radius:4px;cursor:pointer;font-size:0.75rem">Grid</button>
+                                <button class="view-btn ${viewType === 'force' ? 'active' : ''}" data-view="force" style="padding:6px 12px;border:1px solid var(--border);background:${viewType === 'force' ? 'var(--accent)' : 'var(--bg-primary)'};color:${viewType === 'force' ? 'white' : 'var(--text-secondary)'};border-radius:4px;cursor:pointer;font-size:0.75rem">Force</button>
+                            </div>
                         </div>
+                        <div id="clusterViewContainer"></div>
+                    </div>
+                `;
+
+                // Add view toggle handlers
+                resultsList.querySelectorAll('.view-btn').forEach(btn => {
+                    btn.addEventListener('click', () => renderClusterView(btn.dataset.view));
+                });
+
+                const container = document.getElementById('clusterViewContainer');
+
+                if (viewType === 'chord') {
+                    renderChordDiagram(container, colors);
+                } else if (viewType === 'force') {
+                    renderForceLayout(container, colors);
+                } else {
+                    renderGridView(container, colors);
+                }
+            }
+
+            function renderChordDiagram(container, colors) {
+                const width = Math.min(container.clientWidth || 800, 900);
+                const height = 600;
+                const outerRadius = Math.min(width, height) / 2 - 40;
+                const innerRadius = outerRadius - 30;
+
+                container.innerHTML = `<svg id="chordSvg" width="${width}" height="${height}"></svg>`;
+
+                const svg = d3.select('#chordSvg')
+                    .append('g')
+                    .attr('transform', `translate(${width/2},${height/2})`);
+
+                const clusters = state.clusters;
+                const n = clusters.length;
+
+                // Create arc generator
+                const arc = d3.arc()
+                    .innerRadius(innerRadius)
+                    .outerRadius(outerRadius);
+
+                // Calculate total and angles for each cluster
+                const total = d3.sum(clusters, d => d.n_chunks);
+                let startAngle = 0;
+                const padding = 0.01;
+
+                const arcs = clusters.map((c, i) => {
+                    const angle = (c.n_chunks / total) * 2 * Math.PI * 0.9; // 90% for arcs, 10% gaps
+                    const arcData = {
+                        startAngle: startAngle,
+                        endAngle: startAngle + angle,
+                        data: c,
+                        index: i
+                    };
+                    startAngle += angle + padding;
+                    return arcData;
+                });
+
+                // Draw arcs
+                svg.selectAll('.cluster-arc')
+                    .data(arcs)
+                    .enter()
+                    .append('path')
+                    .attr('class', 'cluster-arc')
+                    .attr('d', arc)
+                    .attr('fill', (d, i) => colors[i % colors.length])
+                    .attr('stroke', '#fff')
+                    .attr('stroke-width', 1)
+                    .style('cursor', 'pointer')
+                    .on('mouseover', function(event, d) {
+                        d3.select(this).attr('opacity', 0.8);
+                        showClusterTooltip(d.data.cluster_id, event.clientX, event.clientY);
+                    })
+                    .on('mousemove', function(event) {
+                        clusterTooltip.style.left = Math.min(event.clientX + 15, window.innerWidth - 370) + 'px';
+                        clusterTooltip.style.top = Math.min(event.clientY + 15, window.innerHeight - 200) + 'px';
+                    })
+                    .on('mouseout', function() {
+                        d3.select(this).attr('opacity', 1);
+                        hideClusterTooltip();
+                    })
+                    .on('click', (event, d) => {
+                        loadClusterSamples(d.data.cluster_id, d.data.run_label);
+                    });
+
+                // Add labels for larger clusters
+                svg.selectAll('.cluster-label')
+                    .data(arcs.filter(d => (d.endAngle - d.startAngle) > 0.08))
+                    .enter()
+                    .append('text')
+                    .attr('class', 'cluster-label')
+                    .attr('transform', d => {
+                        const angle = (d.startAngle + d.endAngle) / 2;
+                        const r = outerRadius + 15;
+                        const x = Math.sin(angle) * r;
+                        const y = -Math.cos(angle) * r;
+                        return `translate(${x},${y})`;
+                    })
+                    .attr('text-anchor', 'middle')
+                    .attr('font-size', '10px')
+                    .attr('fill', 'var(--text-secondary)')
+                    .text(d => `C${d.data.cluster_id}`);
+
+                // Draw some chord connections between similar-sized clusters
+                const topClusters = [...clusters].sort((a, b) => b.n_chunks - a.n_chunks).slice(0, 20);
+                const chordData = [];
+
+                for (let i = 0; i < topClusters.length; i++) {
+                    for (let j = i + 1; j < topClusters.length; j++) {
+                        const ratio = Math.min(topClusters[i].n_chunks, topClusters[j].n_chunks) /
+                                     Math.max(topClusters[i].n_chunks, topClusters[j].n_chunks);
+                        if (ratio > 0.5) {
+                            const sourceArc = arcs.find(a => a.data.cluster_id === topClusters[i].cluster_id);
+                            const targetArc = arcs.find(a => a.data.cluster_id === topClusters[j].cluster_id);
+                            if (sourceArc && targetArc) {
+                                chordData.push({ source: sourceArc, target: targetArc, ratio });
+                            }
+                        }
+                    }
+                }
+
+                // Draw ribbons/chords
+                const ribbon = d3.ribbon().radius(innerRadius - 5);
+
+                svg.selectAll('.chord')
+                    .data(chordData)
+                    .enter()
+                    .append('path')
+                    .attr('class', 'chord')
+                    .attr('d', d => ribbon({
+                        source: { startAngle: d.source.startAngle, endAngle: d.source.endAngle },
+                        target: { startAngle: d.target.startAngle, endAngle: d.target.endAngle }
+                    }))
+                    .attr('fill', (d, i) => colors[d.source.index % colors.length])
+                    .attr('opacity', 0.15)
+                    .attr('stroke', 'none');
+
+                // Center text
+                svg.append('text')
+                    .attr('text-anchor', 'middle')
+                    .attr('dy', '-0.5em')
+                    .attr('font-size', '24px')
+                    .attr('font-weight', '600')
+                    .attr('fill', 'var(--text-primary)')
+                    .text(clusters.length);
+
+                svg.append('text')
+                    .attr('text-anchor', 'middle')
+                    .attr('dy', '1em')
+                    .attr('font-size', '12px')
+                    .attr('fill', 'var(--text-muted)')
+                    .text('clusters');
+            }
+
+            function renderForceLayout(container, colors) {
+                const width = container.clientWidth || 800;
+                const height = 600;
+
+                container.innerHTML = `<svg id="forceSvg" width="${width}" height="${height}"></svg>`;
+
+                const svg = d3.select('#forceSvg');
+                const clusters = state.clusters;
+
+                // Scale for node radius
+                const radiusScale = d3.scaleSqrt()
+                    .domain([0, d3.max(clusters, d => d.n_chunks)])
+                    .range([8, 50]);
+
+                const nodes = clusters.map((c, i) => ({
+                    ...c,
+                    radius: radiusScale(c.n_chunks),
+                    color: colors[i % colors.length]
+                }));
+
+                const simulation = d3.forceSimulation(nodes)
+                    .force('charge', d3.forceManyBody().strength(5))
+                    .force('center', d3.forceCenter(width / 2, height / 2))
+                    .force('collision', d3.forceCollide().radius(d => d.radius + 2))
+                    .on('tick', ticked);
+
+                const node = svg.selectAll('.node')
+                    .data(nodes)
+                    .enter()
+                    .append('g')
+                    .attr('class', 'node')
+                    .style('cursor', 'pointer')
+                    .call(d3.drag()
+                        .on('start', dragstarted)
+                        .on('drag', dragged)
+                        .on('end', dragended));
+
+                node.append('circle')
+                    .attr('r', d => d.radius)
+                    .attr('fill', d => d.color)
+                    .attr('opacity', 0.8)
+                    .attr('stroke', '#fff')
+                    .attr('stroke-width', 1)
+                    .on('mouseover', function(event, d) {
+                        d3.select(this).attr('opacity', 1);
+                        showClusterTooltip(d.cluster_id, event.clientX, event.clientY);
+                    })
+                    .on('mousemove', function(event) {
+                        clusterTooltip.style.left = Math.min(event.clientX + 15, window.innerWidth - 370) + 'px';
+                        clusterTooltip.style.top = Math.min(event.clientY + 15, window.innerHeight - 200) + 'px';
+                    })
+                    .on('mouseout', function() {
+                        d3.select(this).attr('opacity', 0.8);
+                        hideClusterTooltip();
+                    })
+                    .on('click', (event, d) => {
+                        loadClusterSamples(d.cluster_id, d.run_label);
+                    });
+
+                node.filter(d => d.radius > 15)
+                    .append('text')
+                    .attr('text-anchor', 'middle')
+                    .attr('dy', '0.35em')
+                    .attr('font-size', d => Math.max(8, d.radius / 3) + 'px')
+                    .attr('fill', 'white')
+                    .attr('pointer-events', 'none')
+                    .text(d => d.cluster_id);
+
+                function ticked() {
+                    node.attr('transform', d => `translate(${d.x},${d.y})`);
+                }
+
+                function dragstarted(event, d) {
+                    if (!event.active) simulation.alphaTarget(0.3).restart();
+                    d.fx = d.x;
+                    d.fy = d.y;
+                }
+
+                function dragged(event, d) {
+                    d.fx = event.x;
+                    d.fy = event.y;
+                }
+
+                function dragended(event, d) {
+                    if (!event.active) simulation.alphaTarget(0);
+                    d.fx = null;
+                    d.fy = null;
+                }
+            }
+
+            function renderGridView(container, colors) {
+                container.innerHTML = `
+                    <p style="margin-bottom:1rem;color:var(--text-secondary)">Click a cluster to explore its documents. Larger clusters contain more documents.</p>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px">
+                        ${state.clusters.map((c, i) => {
+                            const size = Math.max(40, Math.min(80, 30 + Math.sqrt(c.n_chunks) / 2));
+                            const color = colors[i % colors.length];
+                            return `
+                                <div class="cluster-box" data-cluster="${c.cluster_id}" data-run="${c.run_label}"
+                                     style="width:${size}px;height:${size}px;background:${color};border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:white;font-weight:500;transition:all 0.15s;box-shadow:0 2px 4px rgba(0,0,0,0.1)"
+                                     title="Cluster ${c.cluster_id}: ${c.n_chunks.toLocaleString()} documents"
+                                     onmouseover="this.style.transform='scale(1.1)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.2)'"
+                                     onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
+                                    <span style="font-size:0.75rem">${c.cluster_id}</span>
+                                    <span style="font-size:0.6rem;opacity:0.8">${c.n_chunks > 1000 ? Math.round(c.n_chunks/1000) + 'k' : c.n_chunks}</span>
+                                </div>
+                            `;
+                        }).join('')}
                     </div>
                 `;
 
                 // Add click handlers
-                resultsList.querySelectorAll('.cluster-box').forEach(el => {
+                container.querySelectorAll('.cluster-box').forEach(el => {
                     el.addEventListener('click', () => {
                         const clusterId = el.dataset.cluster;
                         const runLabel = el.dataset.run;
                         loadClusterSamples(clusterId, runLabel);
                     });
                 });
-
-                pagination.style.display = 'none';
             }
 
             function renderClusterBrowserList(clusters) {
