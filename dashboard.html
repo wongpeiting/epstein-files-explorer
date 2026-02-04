@@ -1203,7 +1203,7 @@
                 // Create color scale
                 const colors = ['#3498db', '#9b59b6', '#e74c3c', '#f39c12', '#1abc9c', '#34495e', '#e91e63', '#00bcd4'];
 
-                container.innerHTML = clusters.slice(0, 50).map((c, i) => {
+                container.innerHTML = clusters.map((c, i) => {
                     const size = Math.max(36, Math.min(60, 28 + Math.sqrt(c.n_chunks) / 2.5));
                     const color = colors[i % colors.length];
                     return `
@@ -1339,7 +1339,7 @@
 
         // Bubble chart
         function renderBubbleChart(svg, width, height) {
-            const data = state.clusters.slice(0, 50);
+            const data = state.clusters;
             if (!data.length) return;
 
             const pack = d3.pack()
@@ -1396,7 +1396,7 @@
 
         // Treemap
         function renderTreemap(svg, width, height) {
-            const data = state.clusters.slice(0, 50);
+            const data = state.clusters;
             if (!data.length) return;
 
             const treemap = d3.treemap()
