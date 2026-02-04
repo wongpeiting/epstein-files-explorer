@@ -1,10 +1,6 @@
-# Epstein Files Explorer
+# Epstein explore tool for journalists
 
-An experiment in building a document exploration dashboard using [Claude Code](https://claude.ai/claude-code), Anthropic's AI-powered coding assistant.
-
-## About This Project
-
-This project was built collaboratively with Claude Code to create an interactive frontend for exploring the Epstein document corpus. The entire dashboard—HTML, CSS, JavaScript, and D3.js visualizations—was developed through conversation with Claude Code, demonstrating how AI can assist in rapid prototyping of data visualization tools.
+This interactive frontend tool for exploring the Epstein document corpus is built for journalists in mind. It therefore assumes that users would verify nuggets of information they found here against the official documents as they indulge in the iterative process of connecting the dots in putting together a story. Material found here is not to be taken as final - they are to be verified against the original.
 
 ## Data Sources
 
