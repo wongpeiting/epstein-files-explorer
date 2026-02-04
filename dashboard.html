@@ -1198,10 +1198,19 @@
                 state.clusters = clusters;
 
                 // Render force layout on landing page
-                renderLandingForceLayout(container, clusters);
+                try {
+                    renderLandingForceLayout(container, clusters);
+                } catch (renderErr) {
+                    console.error('Failed to render clusters:', renderErr);
+                    // Fallback to simple list
+                    container.innerHTML = clusters.slice(0, 50).map((c, i) =>
+                        `<span style="display:inline-block;padding:4px 8px;margin:2px;background:var(--bg-tertiary);border-radius:4px;font-size:0.75rem;cursor:pointer"
+                               onclick="loadClusterSamples(${c.cluster_id},'${c.run_label}')">${c.cluster_id}</span>`
+                    ).join('');
+                }
             } catch (e) {
                 console.error('Failed to load clusters:', e);
-                container.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem">Failed to load clusters</div>';
+                container.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem">Failed to load clusters. <a href="javascript:location.reload()" style="color:var(--accent)">Retry</a></div>';
             }
         }
 
@@ -2156,19 +2165,29 @@
 
             // Force layout for landing page (smaller)
             function renderLandingForceLayout(container, clusters) {
-                if (!container || !clusters || !clusters.length) return;
+                if (!container || !clusters || !clusters.length) {
+                    console.log('renderLandingForceLayout: missing container or clusters');
+                    return;
+                }
 
                 // Muted, serious color palette for investigative/archival content
                 const colors = ['#4a5568', '#5a6b7c', '#6b7d8c', '#7c8b9c', '#566573', '#64748b', '#475569', '#5b6f7d'];
-                const width = container.clientWidth || 600;
+                const width = Math.max(container.clientWidth, 500) || 600;
                 const height = 350;
 
-                container.innerHTML = `<svg id="landingForceSvg" width="${width}" height="${height}"></svg>`;
+                // Clear and create SVG
+                container.innerHTML = '';
+                const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                svgEl.setAttribute('width', width);
+                svgEl.setAttribute('height', height);
+                svgEl.id = 'landingForceSvg';
+                container.appendChild(svgEl);
 
                 const svg = d3.select('#landingForceSvg');
 
+                const maxChunks = d3.max(clusters, d => d.n_chunks) || 1;
                 const radiusScale = d3.scaleSqrt()
-                    .domain([0, d3.max(clusters, d => d.n_chunks)])
+                    .domain([0, maxChunks])
                     .range([6, 35]);
 
                 const nodes = clusters.map((c, i) => ({
