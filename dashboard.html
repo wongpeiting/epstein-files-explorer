@@ -1039,13 +1039,18 @@
         const HF_SPACE = 'https://cjc0013-epstein-corpus-explorer.hf.space';
 
         // Gradio API helper - calls HuggingFace Space endpoints
-        async function gradioCall(fnName, data) {
+        async function gradioCall(fnName, data, timeout = 60000) {
             // Step 1: Submit the call
             const submitRes = await fetch(`${HF_SPACE}/gradio_api/call/${fnName}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ data })
             });
+
+            if (!submitRes.ok) {
+                throw new Error(`API returned ${submitRes.status}`);
+            }
+
             const { event_id } = await submitRes.json();
 
             // Step 2: Get result via SSE
@@ -1077,11 +1082,11 @@
                     reject(err);
                 };
 
-                // Timeout after 30s
+                // Timeout (default 60s for cold starts)
                 setTimeout(() => {
                     eventSource.close();
                     reject(new Error('Timeout'));
-                }, 30000);
+                }, timeout);
             });
         }
 
@@ -1155,9 +1160,18 @@
         }
 
         // Load clusters and show full-width cluster view
-        async function loadLandingClusters() {
+        async function loadLandingClusters(retryCount = 0) {
+            resultsList.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <div style="margin-top:1rem;color:var(--text-secondary);font-size:0.85rem">
+                        Loading clusters...${retryCount > 0 ? ` (attempt ${retryCount + 1})` : ''}
+                        <br><span style="font-size:0.75rem;color:var(--text-muted)">The server may take a moment to wake up</span>
+                    </div>
+                </div>`;
+
             try {
-                const result = await gradioCall('ui_load_clusters_all', [500]);
+                const result = await gradioCall('ui_load_clusters_all', [500], 90000);
                 const clusterTable = result[0];
 
                 if (!clusterTable || !clusterTable.data || clusterTable.data.length < 2) {
@@ -1178,7 +1192,16 @@
                 showClusterOverview();
             } catch (e) {
                 console.error('Failed to load clusters:', e);
-                resultsList.innerHTML = '<div class="empty-state">Failed to load clusters. <a href="javascript:location.reload()" style="color:var(--accent)">Retry</a></div>';
+                if (retryCount < 2) {
+                    // Auto-retry up to 2 times
+                    setTimeout(() => loadLandingClusters(retryCount + 1), 2000);
+                } else {
+                    resultsList.innerHTML = `
+                        <div class="empty-state" style="text-align:center">
+                            <p style="margin-bottom:1rem">Failed to load clusters. The server may be temporarily unavailable.</p>
+                            <button onclick="loadLandingClusters(0)" style="padding:8px 16px;background:var(--accent);color:white;border:none;border-radius:4px;cursor:pointer">Try Again</button>
+                        </div>`;
+                }
             }
         }
 
