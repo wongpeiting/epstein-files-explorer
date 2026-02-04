@@ -2,6 +2,8 @@
 
 This interactive frontend tool for exploring the Epstein document corpus is built for journalists in mind. It therefore assumes that users would verify nuggets of information they found here against the official documents as they indulge in the iterative process of connecting the dots in putting together a story. Material found here is not to be taken as final - they are to be verified against the original.
 
+Here's the link to the tool: https://wongpeiting.github.io/epstein-files-explorer/
+
 ## Data Sources
 
 This dashboard searches across **two document releases**:
@@ -41,17 +43,6 @@ This dashboard searches across **two document releases**:
 - **Header stats**: Click "Clusters: 256" to view the cluster overview
 - **Sidebar**: Toggle sections to show/hide topic categories
 - **Results**: Scroll to load more results automatically
-
-## Live Site
-
-Visit: [https://wongpeiting.github.io/epstein-files-explorer/](https://wongpeiting.github.io/epstein-files-explorer/)
-
-## Technical Details
-
-- **Frontend**: Pure HTML/CSS/JavaScript (no build step)
-- **Visualization**: D3.js for force-directed cluster layout
-- **API**: Gradio SSE (Server-Sent Events) for async data fetching
-- **Hosting**: GitHub Pages (static site)
 
 ## Disclaimer
 
