@@ -1423,7 +1423,7 @@
             }
         }
 
-        // Search Jan 2026 files by filename
+        // Search Jan 2026 files by filename AND content preview
         function searchJan2026(query) {
             if (!jan2026IndexLoaded) {
                 console.log('Jan 2026 index not loaded yet, attempting load...');
@@ -1433,8 +1433,8 @@
             if (!query) return [];
             const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 0);
             const results = jan2026Index.filter(file => {
-                const name = file.name.toLowerCase();
-                return terms.every(term => name.includes(term));
+                const searchText = (file.name + ' ' + (file.preview || '')).toLowerCase();
+                return terms.every(term => searchText.includes(term));
             }).slice(0, 50);
             console.log(`Jan 2026 search for "${query}": ${results.length} matches`);
             return results;
@@ -2174,20 +2174,22 @@
                 </div>
             `).join('');
 
-            // Render Jan 2026 results (GitHub files)
+            // Render Jan 2026 results (GitHub files with content preview)
             const jan2026Html = jan2026Results.length ? `
                 <div style="margin-top:1.5rem;padding-top:1rem;border-top:2px solid var(--accent)">
                     <div style="font-size:0.85rem;color:var(--accent);margin-bottom:1rem;font-weight:600">
                         📁 Jan 2026 DOJ Release (${jan2026Results.length} matching files)
                     </div>
                     ${jan2026Results.map(f => `
-                        <div class="result-card jan2026-result" data-url="${f.url}" data-name="${escapeHtml(f.name)}" style="cursor:pointer">
+                        <div class="result-card jan2026-result" data-url="${f.url}" data-name="${escapeHtml(f.name)}">
                             <div class="result-header">
                                 <div class="result-source">${escapeHtml(f.name)}</div>
                                 <span class="result-cluster" style="background:var(--accent);color:white">Jan 2026</span>
                             </div>
-                            <div class="result-text" style="color:var(--text-muted);font-size:0.8rem">
-                                ${escapeHtml(f.folder)} · ${(f.size / 1024).toFixed(0)} KB
+                            <div class="result-text">${highlightText(escapeHtml((f.preview || '').substring(0, 400)), state.query || state.selectedTags.join(' '))}${f.preview && f.preview.length > 400 ? '...' : ''}</div>
+                            <div style="margin-top:0.5rem;font-size:0.75rem">
+                                <a href="${f.url}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline" onclick="event.stopPropagation()">View full text on GitHub ↗</a>
+                                <span style="color:var(--text-muted);margin-left:0.5rem">${(f.size / 1024).toFixed(0)} KB</span>
                             </div>
                         </div>
                     `).join('')}
@@ -2196,10 +2198,13 @@
 
             resultsList.innerHTML = nov2025Html + jan2026Html;
 
-            // Add click handlers for Jan 2026 results
+            // Add click handlers for Jan 2026 results (click card to open in modal)
             resultsList.querySelectorAll('.jan2026-result').forEach(el => {
-                el.addEventListener('click', () => {
-                    openJan2026Doc(el.dataset.url, el.dataset.name);
+                el.style.cursor = 'pointer';
+                el.addEventListener('click', (e) => {
+                    if (e.target.tagName !== 'A') {
+                        openJan2026Doc(el.dataset.url, el.dataset.name);
+                    }
                 });
             });
 
@@ -2486,11 +2491,19 @@
 
             // Also listen on window in case content doesn't scroll internally
             window.addEventListener('scroll', () => {
+                hideClusterTooltip(); // Hide tooltip on scroll (fixes mobile)
                 const scrollTop = window.scrollY || document.documentElement.scrollTop;
                 const scrollHeight = document.documentElement.scrollHeight;
                 const clientHeight = window.innerHeight;
                 if (scrollTop + clientHeight >= scrollHeight - 300 && !state.isLoading && state.hasMore) {
                     loadMore();
+                }
+            });
+
+            // Hide tooltip when touching elsewhere on mobile
+            document.addEventListener('touchstart', (e) => {
+                if (!e.target.closest('.cluster-node') && !e.target.closest('.cluster-tooltip')) {
+                    hideClusterTooltip();
                 }
             });
 
