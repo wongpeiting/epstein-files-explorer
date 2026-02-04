@@ -1015,21 +1015,7 @@
             </div>
 
             <div class="results-list" id="resultsList">
-                <div class="empty-state">
-                    <div style="max-width:700px;margin:0 auto;text-align:left">
-                        <div>
-                            <p style="margin-bottom:0.75rem;font-size:0.95rem;line-height:1.6">Jeffrey Epstein cultivated ties to some of the world's most powerful people—billionaires, politicians, scientists, and royalty. When he died in 2019, he left behind a trove of documents that reveal how those relationships worked.</p>
-                            <p style="margin-bottom:1rem;font-size:0.95rem;line-height:1.6">This archive contains <strong>331,655 documents</strong>: emails, court filings, flight logs, financial records, and communications spanning 2002–2019. Search by name, place, or topic. Combine filters to narrow your results.</p>
-                            <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:1.5rem">Select a topic from the sidebar, or type a name to begin. Click multiple topics to narrow your search.</p>
-                        </div>
-                        <div style="margin-top:1.5rem">
-                            <h4 style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:1rem;text-transform:uppercase;letter-spacing:0.5px">Browse by Cluster</h4>
-                            <div id="landingClusters" style="display:flex;flex-wrap:wrap;gap:8px;max-width:600px">
-                                <div style="color:var(--text-muted);font-size:0.8rem">Loading clusters...</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <div class="loading"><div class="spinner"></div>Loading clusters...</div>
             </div>
 
             <div class="pagination" id="pagination" style="display:none">
@@ -1168,49 +1154,31 @@
             setupEventListeners();
         }
 
-        // Load clusters for landing page display using Gradio API
+        // Load clusters and show full-width cluster view
         async function loadLandingClusters() {
-            const container = document.getElementById('landingClusters');
-            if (!container) return;
-
             try {
-                const result = await gradioCall('ui_load_clusters_all', [500]); // get all clusters
-                // result[0] is cluster table, result[1] is dropdown choices, result[2] is status
+                const result = await gradioCall('ui_load_clusters_all', [500]);
                 const clusterTable = result[0];
 
                 if (!clusterTable || !clusterTable.data || clusterTable.data.length < 2) {
-                    container.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem">No clusters found</div>';
+                    resultsList.innerHTML = '<div class="empty-state">No clusters found</div>';
                     return;
                 }
 
-                // Parse cluster data: first row is header, skip it
-                // columns are [run_label, cluster_id, n_chunks, etc.]
                 const clusters = clusterTable.data.slice(1).map(row => ({
                     run_label: row[0],
                     cluster_id: row[1],
                     n_chunks: parseInt(row[2]) || 0
                 }));
 
-                // Update cluster count stat
                 document.getElementById('statClusters').textContent = clusters.length.toLocaleString();
-
-                // Store for later use
                 state.clusters = clusters;
 
-                // Render force layout on landing page
-                try {
-                    renderLandingForceLayout(container, clusters);
-                } catch (renderErr) {
-                    console.error('Failed to render clusters:', renderErr);
-                    // Fallback to simple list
-                    container.innerHTML = clusters.slice(0, 50).map((c, i) =>
-                        `<span style="display:inline-block;padding:4px 8px;margin:2px;background:var(--bg-tertiary);border-radius:4px;font-size:0.75rem;cursor:pointer"
-                               onclick="loadClusterSamples(${c.cluster_id},'${c.run_label}')">${c.cluster_id}</span>`
-                    ).join('');
-                }
+                // Show full-width cluster view as default
+                showClusterOverview();
             } catch (e) {
                 console.error('Failed to load clusters:', e);
-                container.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem">Failed to load clusters. <a href="javascript:location.reload()" style="color:var(--accent)">Retry</a></div>';
+                resultsList.innerHTML = '<div class="empty-state">Failed to load clusters. <a href="javascript:location.reload()" style="color:var(--accent)">Retry</a></div>';
             }
         }
 
@@ -2119,30 +2087,13 @@
                 }
             }
 
-            // Show landing content (default state)
+            // Show landing content (default state) - now shows cluster overview
             function showLandingContent() {
-                resultsCount.textContent = '';
-                resultsList.innerHTML = `
-                    <div class="empty-state">
-                        <div style="max-width:700px;margin:0 auto;text-align:left">
-                            <div>
-                                <p style="margin-bottom:0.75rem;font-size:0.95rem;line-height:1.6">Jeffrey Epstein cultivated ties to some of the world's most powerful people—billionaires, politicians, scientists, and royalty. When he died in 2019, he left behind a trove of documents that reveal how those relationships worked.</p>
-                                <p style="margin-bottom:1rem;font-size:0.95rem;line-height:1.6">This archive contains <strong>331,655 documents</strong>: emails, court filings, flight logs, financial records, and communications spanning 2002–2019. Search by name, place, or topic. Combine filters to narrow your results.</p>
-                                <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:1.5rem">Select a topic from the sidebar, or type a name to begin. Click multiple topics to narrow your search.</p>
-                            </div>
-                            <div style="margin-top:1.5rem">
-                                <h4 style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:1rem;text-transform:uppercase;letter-spacing:0.5px">Browse by Cluster</h4>
-                                <div id="landingClustersReset" style="max-width:600px"></div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                pagination.style.display = 'none';
-
-                // Render force layout if clusters are loaded
                 if (state.clusters && state.clusters.length > 0) {
-                    const container = document.getElementById('landingClustersReset');
-                    renderLandingForceLayout(container, state.clusters);
+                    showClusterOverview();
+                } else {
+                    resultsCount.textContent = '';
+                    resultsList.innerHTML = '<div class="loading"><div class="spinner"></div>Loading clusters...</div>';
                 }
             }
 
@@ -2151,15 +2102,16 @@
                 resultsCount.textContent = '';
 
                 resultsList.innerHTML = `
-                    <div style="padding:1rem">
-                        <h3 style="color:var(--text-primary);margin-bottom:0.5rem">Browse Clusters</h3>
-                        <p style="color:var(--text-secondary);margin-bottom:1rem;font-size:0.85rem">Click a cluster to explore its documents. Drag to rearrange. Larger nodes = more documents.</p>
-                        <div id="clusterForceContainer"></div>
+                    <div style="padding:0.5rem">
+                        <p style="color:var(--text-secondary);margin-bottom:0.5rem;font-size:0.8rem">Click a cluster to explore its documents. Drag to rearrange. Larger nodes = more documents.</p>
+                        <div id="clusterForceContainer" style="width:100%"></div>
                     </div>
                 `;
 
                 const container = document.getElementById('clusterForceContainer');
-                renderForceLayout(container, 800, 600);
+                const contentWidth = resultsList.clientWidth - 20;
+                const contentHeight = Math.max(500, window.innerHeight - 200);
+                renderForceLayout(container, contentWidth, contentHeight);
                 pagination.style.display = 'none';
             }
 
